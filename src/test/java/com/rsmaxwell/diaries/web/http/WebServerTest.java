@@ -75,13 +75,16 @@ class WebServerTest {
             assertThat(selected.body()).containsPattern("(?s)data-reader-fragment=\"34\".*?aria-current=\"true\"");
             assertThat(month.headers().firstValue("ETag")).isNotEqualTo(selected.headers().firstValue("ETag"));
             assertThat(source.statusCode()).isEqualTo(200);
+            assertThat(source.body()).contains("Original diary page");
             assertThat(source.body()).doesNotContain("No published transcript is linked");
             assertThat(source.body()).contains("/reader/diaries/11/2026/09?fragment=33#fragment-33");
             assertThat(untranscribedSource.statusCode()).isEqualTo(200);
             assertThat(untranscribedSource.body()).contains("page 003", "No published transcript is linked");
+            assertThat(untranscribedSource.body()).doesNotContain("Original diary page");
             assertThat(css.body()).contains(".month-reader", ".reader-viewer.is-expanded", ".marquee.is-unavailable",
                     ".fragment__content[data-fragment-selector]",
-                    ".month-heading h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)");
+                    ".month-heading h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)",
+                    ".source-page-heading--untranscribed h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)");
             assertThat(javascript.body()).contains("initialiseMonthReader", "zoomAt", "window.history.pushState",
                     "window.history.replaceState", "pointermove", "ResizeObserver", "keydown", "aria-pressed");
             assertThat(index.headers().firstValue("Content-Security-Policy"))

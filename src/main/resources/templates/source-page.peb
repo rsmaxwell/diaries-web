@@ -3,8 +3,8 @@
 <nav class="breadcrumbs" aria-label="Breadcrumb">
   <a href="{{ diariesUrl }}">Diaries</a> / <a href="{{ diary.url }}">{{ diary.name }}</a>
 </nav>
-<header class="page-heading">
-  <p class="eyebrow">Original diary page</p>
+<header class="page-heading{% if not hasFragments %} source-page-heading--untranscribed{% endif %}">
+  {% if hasFragments %}<p class="eyebrow">Original diary page</p>{% endif %}
   <h1>{{ page.name }}</h1>
 </header>
 
