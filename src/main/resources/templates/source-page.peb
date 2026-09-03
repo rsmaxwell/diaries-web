@@ -1,0 +1,51 @@
+{% extends "layouts/base.peb" %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  <a href="{{ diariesUrl }}">Diaries</a> / <a href="{{ diary.url }}">{{ diary.name }}</a>
+</nav>
+<header class="page-heading">
+  <p class="eyebrow">Original diary page</p>
+  <h1>{{ page.name }}</h1>
+</header>
+
+<div class="source-layout" data-source-page>
+  <figure class="source-image">
+    <svg viewBox="0 0 {{ page.width }} {{ page.height }}" role="img" aria-labelledby="source-title source-description">
+      <title id="source-title">Original page {{ page.name }}</title>
+      <desc id="source-description">The scanned diary page. The selected transcript region is highlighted.</desc>
+      <image href="{{ page.imageUrl }}" width="{{ page.width }}" height="{{ page.height }}"></image>
+      {% for fragment in fragments %}
+      <a class="marquee-link"
+         data-marquee-fragment="{{ fragment.id }}"
+         href="#{{ fragment.anchor }}"
+         aria-label="Read transcript for {{ fragment.date }}">
+        <rect class="marquee" x="{{ fragment.x }}" y="{{ fragment.y }}" width="{{ fragment.width }}" height="{{ fragment.height }}"></rect>
+      </a>
+      {% endfor %}
+    </svg>
+    <figcaption>If the scan does not load, use the transcript links below.</figcaption>
+  </figure>
+
+  <section aria-labelledby="transcript-heading">
+    <h2 id="transcript-heading">Transcript</h2>
+    {% if hasFragments %}
+      {% for fragment in fragments %}
+      <article class="fragment"
+               id="{{ fragment.anchor }}"
+               data-transcript-fragment="{{ fragment.id }}">
+        <div class="fragment__heading">
+          <h3><a href="{{ fragment.monthUrl }}">{{ fragment.date }}</a></h3>
+          <button class="fragment__selector"
+                  type="button"
+                  data-fragment-selector="{{ fragment.id }}"
+                  aria-pressed="false">Show on original page</button>
+        </div>
+        <div class="fragment__content">{{ fragment.html | raw }}</div>
+      </article>
+      {% endfor %}
+    {% else %}
+      <p>No published transcript is linked to this source page.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

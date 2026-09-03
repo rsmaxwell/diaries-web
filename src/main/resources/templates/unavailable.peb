@@ -1,0 +1,9 @@
+{% extends "layouts/base.peb" %}
+{% block content %}
+<header class="page-heading">
+  <p class="eyebrow">Temporarily unavailable</p>
+  <h1>The diary is synchronising</h1>
+  <p>{{ reason }}</p>
+  <p><a href="{{ homeUrl }}">Try again</a></p>
+</header>
+{% endblock %}

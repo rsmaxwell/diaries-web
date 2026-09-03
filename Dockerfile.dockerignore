@@ -1,0 +1,12 @@
+**
+!gradlew
+!gradlew.bat
+!settings.gradle
+!build.gradle
+!gradle/
+!gradle/**
+!diaries-web/
+!diaries-web/**
+diaries-web/build/
+diaries-web/change-control/
+diaries-web/.git/

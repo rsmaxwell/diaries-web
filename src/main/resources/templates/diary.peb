@@ -1,0 +1,43 @@
+{% extends "layouts/base.peb" %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="{{ diariesUrl }}">Diaries</a></nav>
+<header class="page-heading">
+  <p class="eyebrow">Diary contents</p>
+  <h1>{{ diary.name }}</h1>
+  <p>Choose a month to read the transcription alongside the original pages.</p>
+</header>
+<div class="contents-layout">
+  <section aria-labelledby="months-heading">
+    <h2 id="months-heading">Published months</h2>
+    {% if hasMonths %}
+      <form class="month-chooser" action="{{ diary.url }}" method="get">
+        <label for="diary-month">Choose month</label>
+        <select id="diary-month" name="month">
+        {% for month in monthOptions %}<option value="{{ month.value }}">{{ month.label }}</option>{% endfor %}
+        </select>
+        <button type="submit">Read month</button>
+      </form>
+      <ol class="card-list card-list--months">
+      {% for month in months %}<li><a class="card-link" href="{{ month.url }}">{{ month.label }}</a></li>{% endfor %}
+      </ol>
+    {% else %}
+      <p>No dated fragments are currently linked to this diary.</p>
+    {% endif %}
+  </section>
+  <section aria-labelledby="pages-heading">
+    <h2 id="pages-heading">Original pages</h2>
+    <p class="supporting-text">Pages without transcription remain available here.</p>
+    {% if hasPages %}
+      <ol class="link-list">
+      {% for page in pages %}<li><a href="{{ page.url }}">{{ page.label }}</a></li>{% endfor %}
+      </ol>
+    {% else %}
+      <p>No source pages are currently published.</p>
+    {% endif %}
+  </section>
+</div>
+<nav class="adjacent-navigation" aria-label="Adjacent diaries">
+  <span>{% if hasPreviousDiary %}<a rel="prev" href="{{ previousDiary.url }}">← {{ previousDiary.label }}</a>{% endif %}</span>
+  <span>{% if hasNextDiary %}<a rel="next" href="{{ nextDiary.url }}">{{ nextDiary.label }} →</a>{% endif %}</span>
+</nav>
+{% endblock %}

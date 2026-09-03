@@ -1,0 +1,8 @@
+.gradle/
+build/
+.idea/
+.project
+.classpath
+.settings/
+config/local.json
+*.log

@@ -1,0 +1,78 @@
+{% extends "layouts/base.peb" %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  <a href="{{ diariesUrl }}">Diaries</a> / <a href="{{ diary.url }}">{{ diary.name }}</a>
+</nav>
+<header class="month-heading">
+  <div>
+    <h1>{{ month.label }}</h1>
+  </div>
+  <form class="month-chooser" action="{{ diary.url }}" method="get">
+    <label for="reader-month">Choose month</label>
+    <select id="reader-month" name="month">
+    {% for option in monthOptions %}
+      <option value="{{ option.value }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+    {% endfor %}
+    </select>
+    <button type="submit">Go</button>
+  </form>
+</header>
+<nav class="month-navigation" aria-label="Adjacent published months">
+  <span>{% if hasPreviousMonth %}<a rel="prev" href="{{ previousMonth.url }}">← {{ previousMonth.label }}</a>{% endif %}</span>
+  <a href="{{ diariesUrl }}">All diaries</a>
+  <span>{% if hasNextMonth %}<a rel="next" href="{{ nextMonth.url }}">{{ nextMonth.label }} →</a>{% endif %}</span>
+</nav>
+<div class="month-reader" data-month-reader>
+  <aside class="reader-viewer" data-viewer>
+    <div class="viewer-heading">
+      <div><p class="eyebrow">Original source</p><h2 data-page-name>{{ viewer.pageName }}</h2></div>
+      <button class="viewer-expand" type="button" data-viewer-expand aria-expanded="false">Expand image</button>
+    </div>
+    <div class="viewer-controls" role="group" aria-label="Image viewer controls">
+      <button type="button" data-viewer-action="zoom-out" aria-label="Zoom out">−</button>
+      <button type="button" data-viewer-action="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" data-viewer-action="fit-page">Fit page</button>
+      <button type="button" data-viewer-action="fit-selection">Fit selection</button>
+      <button type="button" data-viewer-action="reset">Reset</button>
+    </div>
+    <div class="viewer-surface" data-viewer-surface tabindex="0"
+         aria-label="Zoomable original diary page. Use pointer gestures or the controls above.">
+      <svg data-viewer-svg viewBox="0 0 {{ viewer.pageWidth }} {{ viewer.pageHeight }}"
+           role="img" aria-labelledby="viewer-title viewer-description">
+        <title id="viewer-title">Original page <tspan data-svg-page-name>{{ viewer.pageName }}</tspan></title>
+        <desc id="viewer-description">The scanned diary page with only the selected transcription region highlighted.</desc>
+        <image data-viewer-image href="{{ viewer.imageUrl }}" width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}"></image>
+        <rect data-viewer-marquee class="marquee{% if not viewer.hasMarquee %} is-unavailable{% endif %}"
+              x="{{ viewer.x }}" y="{{ viewer.y }}" width="{{ viewer.width }}" height="{{ viewer.height }}"></rect>
+      </svg>
+      <p class="viewer-loading" data-viewer-message role="status" aria-live="polite"></p>
+    </div>
+    <nav class="fragment-navigation" aria-label="Adjacent fragments">
+      <span data-previous-slot>{% if hasPreviousFragment %}<a href="{{ previousFragment.url }}" data-previous-fragment>← Previous fragment</a>{% endif %}</span>
+      <span data-next-slot>{% if hasNextFragment %}<a href="{{ nextFragment.url }}" data-next-fragment>Next fragment →</a>{% endif %}</span>
+    </nav>
+  </aside>
+  <div class="month-transcript" aria-label="Diary transcriptions for {{ month.label }}">
+    {% for day in days %}
+    <section class="transcript-day" id="{{ day.anchor }}">
+      <h3><time datetime="{{ day.iso }}">{{ day.date }}</time></h3>
+      {% for fragment in day.fragments %}
+      <article class="reader-fragment{% if fragment.selected %} is-selected{% endif %}"
+               id="{{ fragment.anchor }}" data-reader-fragment="{{ fragment.id }}"
+               data-page-id="{{ fragment.pageId }}" data-page-name="{{ fragment.pageName }}"
+               data-image-url="{{ fragment.imageUrl }}" data-page-width="{{ fragment.pageWidth }}"
+               data-page-height="{{ fragment.pageHeight }}" data-has-marquee="{{ fragment.hasMarquee }}"
+               data-marquee-x="{{ fragment.x }}" data-marquee-y="{{ fragment.y }}"
+               data-marquee-width="{{ fragment.width }}" data-marquee-height="{{ fragment.height }}"
+               data-fragment-url="{{ fragment.url }}"{% if fragment.selected %} aria-current="true"{% endif %}>
+        <div class="fragment__content" data-fragment-selector="{{ fragment.id }}" role="button" tabindex="0"
+             aria-pressed="{% if fragment.selected %}true{% else %}false{% endif %}">
+          <span class="visually-hidden">Show the corresponding region on the original source. </span>{{ fragment.html | raw }}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

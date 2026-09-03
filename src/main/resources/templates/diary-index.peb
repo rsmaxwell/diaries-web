@@ -1,0 +1,19 @@
+{% extends "layouts/base.peb" %}
+{% block content %}
+<header class="page-heading">
+  <p class="eyebrow">Read-only archive</p>
+  <h1>{{ siteTitle }}</h1>
+  <p>{{ siteDescription }}</p>
+</header>
+{% if empty %}
+  <div class="notice"><p>No diaries are currently published.</p></div>
+{% else %}
+  <nav aria-label="Diary index">
+    <ul class="card-list">
+    {% for diary in diaries %}
+      <li><a class="card-link" href="{{ diary.url }}">{{ diary.label }}</a></li>
+    {% endfor %}
+    </ul>
+  </nav>
+{% endif %}
+{% endblock %}

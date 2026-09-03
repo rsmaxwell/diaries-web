@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{{ siteDescription }}">
+  <title>{{ pageTitle }} | {{ siteTitle }}</title>
+  <link rel="canonical" href="{{ canonicalUrl }}">
+  <link rel="stylesheet" href="{{ cssUrl }}">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to diary content</a>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="site-title" href="{{ homeUrl }}">{{ siteTitle }}</a>
+      <nav aria-label="Primary navigation">
+        <a href="{{ diariesUrl }}">Diaries</a>
+        <a href="{{ aboutUrl }}">About</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main-content" class="page-shell">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <p>Read-only diary archive · version {{ version }}</p>
+  </footer>
+  <script src="{{ jsUrl }}" defer></script>
+</body>
+</html>
