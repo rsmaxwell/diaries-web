@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="{{ siteDescription }}">
-  <title>{{ pageTitle }} | {{ siteTitle }}</title>
+  <title>Diaries Browser</title>
   <link rel="canonical" href="{{ canonicalUrl }}">
   <link rel="stylesheet" href="{{ cssUrl }}">
 </head>

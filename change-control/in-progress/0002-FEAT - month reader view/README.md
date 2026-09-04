@@ -12,7 +12,11 @@ Implemented for review
 
 - Adds `/diaries/{diaryId}/{year}/{month}` as the primary reader route.
 - Groups the month's sanitized transcription by date, sequence and ID.
-- Displays the selected fragment's source page and only its marquee.
+- Displays the selected fragment's source page and highlights its marquee.
+- Shows the other linked marquees on that source page as pointer- and
+  keyboard-selectable regions which select the associated transcript.
+- Defaults the source viewer to the focus presentation, leaving the selected
+  marquee unchanged while dimming the surrounding page.
 - Supplies read-only mouse, pointer and touch pan/zoom controls in browser
   JavaScript, with Fit page, Fit selection and Reset actions.
 - Keeps the image panel sticky on desktop and provides a compact expandable

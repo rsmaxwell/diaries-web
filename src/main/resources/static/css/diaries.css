@@ -52,7 +52,8 @@ button, select { font: inherit; }
 .month-chooser label { font-size: .82rem; font-weight: 700; width: 100%; }
 .month-chooser select, .month-chooser button, .viewer-controls button, .viewer-expand { background: var(--surface); border: 1px solid var(--accent); border-radius: .25rem; color: var(--accent-dark); padding: .42rem .7rem; }
 .month-chooser button, .viewer-controls button, .viewer-expand { cursor: pointer; font-weight: 650; }
-.month-chooser button:hover, .viewer-controls button:hover, .viewer-expand:hover { background: var(--selected); }
+.month-chooser button:hover, .viewer-controls button:hover:not(:disabled), .viewer-expand:hover { background: var(--selected); }
+.viewer-controls button:disabled { border-color: var(--line); color: var(--muted); cursor: not-allowed; opacity: .55; }
 .adjacent-navigation, .month-navigation, .fragment-navigation { display: flex; justify-content: space-between; gap: 1rem; margin-top: 2.5rem; border-top: 1px solid var(--line); padding-top: 1rem; }
 
 .month-heading { align-items: end; display: flex; justify-content: space-between; gap: 2rem; margin-bottom: 1rem; }
@@ -72,6 +73,11 @@ button, select { font: inherit; }
 .viewer-surface svg { display: block; height: 100%; width: 100%; }
 .marquee { fill: rgba(255, 214, 64, .18); stroke: #ffc928; stroke-width: 4; vector-effect: non-scaling-stroke; }
 .marquee.is-unavailable { display: none; }
+.viewer-dimming { display: none; fill: rgba(40, 40, 40, .65); pointer-events: none; }
+.reader-viewer.is-focus-mode.has-selection .viewer-dimming { display: block; }
+.reader-viewer.is-focus-mode .marquee { fill: transparent; stroke: var(--focus); }
+.marquee-target { cursor: pointer; fill: transparent; pointer-events: all; stroke: transparent; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.marquee-target:focus { stroke: var(--focus); outline: none; }
 .viewer-loading { background: rgba(20, 20, 20, .82); bottom: 0; color: #fff; font: .78rem/1.4 system-ui, sans-serif; left: 0; margin: 0; padding: .4rem .6rem; position: absolute; right: 0; }
 .viewer-loading:empty { display: none; }
 .fragment-navigation { font-family: system-ui, sans-serif; font-size: .78rem; margin-top: .7rem; }

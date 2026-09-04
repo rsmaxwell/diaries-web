@@ -23,7 +23,7 @@
   <span>{% if hasNextMonth %}<a rel="next" href="{{ nextMonth.url }}">{{ nextMonth.label }} →</a>{% endif %}</span>
 </nav>
 <div class="month-reader" data-month-reader>
-  <aside class="reader-viewer" data-viewer>
+  <aside class="reader-viewer is-focus-mode{% if viewer.hasMarquee %} has-selection{% endif %}" data-viewer>
     <div class="viewer-heading">
       <div><p class="eyebrow">Original source</p><h2 data-page-name>{{ viewer.pageName }}</h2></div>
       <button class="viewer-expand" type="button" data-viewer-expand aria-expanded="false">Expand image</button>
@@ -33,6 +33,8 @@
       <button type="button" data-viewer-action="zoom-in" aria-label="Zoom in">+</button>
       <button type="button" data-viewer-action="fit-page">Fit page</button>
       <button type="button" data-viewer-action="fit-selection">Fit selection</button>
+      <button type="button" data-viewer-action="toggle-display"
+              aria-label="Use highlight style for the selected marquee">Use highlight style</button>
     </div>
     <div class="viewer-surface" data-viewer-surface tabindex="0"
          aria-label="Zoomable original diary page. Use pointer gestures or the controls above.">
@@ -40,7 +42,18 @@
            role="img" aria-labelledby="viewer-title viewer-description">
         <title id="viewer-title">Original page <tspan data-svg-page-name>{{ viewer.pageName }}</tspan></title>
         <desc id="viewer-description">The scanned diary page with only the selected transcription region highlighted.</desc>
+        <defs>
+          <mask id="viewer-selection-mask" maskUnits="userSpaceOnUse">
+            <rect data-viewer-mask-base x="0" y="0" width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}" fill="white"></rect>
+            <rect data-viewer-mask-selection x="{{ viewer.x }}" y="{{ viewer.y }}"
+                  width="{{ viewer.width }}" height="{{ viewer.height }}" fill="black"></rect>
+          </mask>
+        </defs>
         <image data-viewer-image href="{{ viewer.imageUrl }}" width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}"></image>
+        <rect data-viewer-dimming class="viewer-dimming" x="0" y="0"
+              width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}"
+              mask="url(#viewer-selection-mask)"></rect>
+        <g data-viewer-marquee-targets aria-label="Other transcribed passages on this page"></g>
         <rect data-viewer-marquee class="marquee{% if not viewer.hasMarquee %} is-unavailable{% endif %}"
               x="{{ viewer.x }}" y="{{ viewer.y }}" width="{{ viewer.width }}" height="{{ viewer.height }}"></rect>
       </svg>

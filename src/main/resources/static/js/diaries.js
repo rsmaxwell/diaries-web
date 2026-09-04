@@ -13,6 +13,10 @@ document.documentElement.classList.add('js');
     const svg = viewer.querySelector('[data-viewer-svg]');
     const image = viewer.querySelector('[data-viewer-image]');
     const marquee = viewer.querySelector('[data-viewer-marquee]');
+    const maskBase = viewer.querySelector('[data-viewer-mask-base]');
+    const maskSelection = viewer.querySelector('[data-viewer-mask-selection]');
+    const dimming = viewer.querySelector('[data-viewer-dimming]');
+    const marqueeTargets = viewer.querySelector('[data-viewer-marquee-targets]');
     const pageName = viewer.querySelector('[data-page-name]');
     const svgPageName = viewer.querySelector('[data-svg-page-name]');
     const message = viewer.querySelector('[data-viewer-message]');
@@ -27,6 +31,7 @@ document.documentElement.classList.add('js');
     let currentPageId = null;
     let previousPointer = null;
     let previousPinch = null;
+    let focusMode = true;
 
     const metadata = (fragment) => ({
       id: fragment.dataset.readerFragment,
@@ -121,6 +126,41 @@ document.documentElement.classList.add('js');
       slot.append(link);
     };
 
+    const selectFromMarquee = (index) => {
+      selectFragment(index, true);
+      fragments[index].scrollIntoView({ block: 'center' });
+      surface.focus({ preventScroll: true });
+    };
+
+    const renderMarqueeTargets = (selectedData) => {
+      marqueeTargets.replaceChildren();
+      fragments.forEach((fragment, index) => {
+        const data = metadata(fragment);
+        if (!data.hasMarquee || data.pageId !== selectedData.pageId || index === selectedIndex) return;
+
+        const target = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        target.classList.add('marquee-target');
+        target.setAttribute('x', data.rectangle.x);
+        target.setAttribute('y', data.rectangle.y);
+        target.setAttribute('width', data.rectangle.width);
+        target.setAttribute('height', data.rectangle.height);
+        target.setAttribute('role', 'button');
+        target.setAttribute('tabindex', '0');
+        target.setAttribute('aria-label', 'Select another transcribed passage');
+        target.addEventListener('pointerdown', event => event.stopPropagation());
+        target.addEventListener('click', event => {
+          event.stopPropagation();
+          selectFromMarquee(index);
+        });
+        target.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          selectFromMarquee(index);
+        });
+        marqueeTargets.append(target);
+      });
+    };
+
     const selectFragment = (index, addHistory) => {
       if (index < 0 || index >= fragments.length) return;
       const fragment = fragments[index];
@@ -139,11 +179,23 @@ document.documentElement.classList.add('js');
       page = { width: data.pageWidth, height: data.pageHeight };
       image.setAttribute('width', data.pageWidth);
       image.setAttribute('height', data.pageHeight);
+      maskBase.setAttribute('width', data.pageWidth);
+      maskBase.setAttribute('height', data.pageHeight);
+      dimming.setAttribute('width', data.pageWidth);
+      dimming.setAttribute('height', data.pageHeight);
       marquee.setAttribute('x', data.rectangle.x);
       marquee.setAttribute('y', data.rectangle.y);
       marquee.setAttribute('width', data.rectangle.width);
       marquee.setAttribute('height', data.rectangle.height);
+      maskSelection.setAttribute('x', data.rectangle.x);
+      maskSelection.setAttribute('y', data.rectangle.y);
+      maskSelection.setAttribute('width', data.rectangle.width);
+      maskSelection.setAttribute('height', data.rectangle.height);
       marquee.classList.toggle('is-unavailable', !data.hasMarquee);
+      viewer.classList.toggle('has-selection', data.hasMarquee);
+      const displayButton = viewer.querySelector('[data-viewer-action="toggle-display"]');
+      displayButton.disabled = !data.hasMarquee;
+      renderMarqueeTargets(data);
       pageName.textContent = data.pageName;
       svgPageName.textContent = data.pageName;
       message.textContent = data.hasMarquee ? '' : 'The source region is unavailable for this fragment.';
@@ -186,6 +238,17 @@ document.documentElement.classList.add('js');
         if (action === 'zoom-out') zoomAt(centreX, centreY, 1.25);
         if (action === 'fit-page') fitPage();
         if (action === 'fit-selection') fitSelection(metadata(fragments[selectedIndex]));
+        if (action === 'toggle-display') {
+          focusMode = !focusMode;
+          viewer.classList.toggle('is-focus-mode', focusMode);
+          button.textContent = focusMode ? 'Use highlight style' : 'Use focus style';
+          button.setAttribute(
+            'aria-label',
+            focusMode
+              ? 'Use highlight style for the selected marquee'
+              : 'Use focus style for the selected marquee'
+          );
+        }
         surface.focus();
       });
     });

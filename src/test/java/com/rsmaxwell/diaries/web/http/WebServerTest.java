@@ -61,10 +61,11 @@ class WebServerTest {
                     "rel=\"next\" href=\"/reader/diaries/12\"");
             assertThat(diary.body()).doesNotContain("1 September 2026");
             assertThat(month.statusCode()).isEqualTo(200);
-            assertThat(month.body()).contains("September 2026", "data-month-reader",
+            assertThat(month.body()).contains("<title>Diaries Browser</title>", "September 2026", "data-month-reader",
                     "data-viewer-svg", "data-viewer-marquee", "data-reader-fragment=\"33\"",
                     "data-reader-fragment=\"34\"", "Tuesday 1",
-                    "Wednesday 2", "Fit page", "Fit selection",
+                    "Wednesday 2", "Fit page", "Fit selection", "Use highlight style",
+                    "data-viewer-dimming", "data-viewer-mask-selection", "data-viewer-marquee-targets",
                     "Next fragment", "https://content.example.test/diaries/Family%20diary/page%20001.jpg");
             assertThat(month.body()).containsPattern(
                     "(?s)<div class=\"fragment__content\" data-fragment-selector=\"33\" role=\"button\" tabindex=\"0\".*?A diary entry");
@@ -73,6 +74,7 @@ class WebServerTest {
                     "Selected source", "Original source: page 001", "fragment__source",
                     ">Month reader</p>", "2 published fragments", "data-viewer-action=\"reset\"");
             assertThat(selected.statusCode()).isEqualTo(200);
+            assertThat(month.body()).contains("reader-viewer is-focus-mode has-selection");
             assertThat(selected.body()).contains("Previous fragment", "page 002",
                     "https://content.example.test/diaries/Family%20diary/page%20002.jpg");
             assertThat(selected.body()).containsPattern("(?s)data-reader-fragment=\"34\".*?aria-current=\"true\"");
@@ -85,12 +87,17 @@ class WebServerTest {
             assertThat(untranscribedSource.body()).contains("page 003", "No published transcript is linked");
             assertThat(untranscribedSource.body()).doesNotContain("Original diary page");
             assertThat(css.body()).contains(".month-reader", ".reader-viewer.is-expanded", ".marquee.is-unavailable",
+                    ".reader-viewer.is-focus-mode.has-selection .viewer-dimming", ".marquee-target:focus",
+                    "fill: rgba(40, 40, 40, .65)",
                     ".fragment__content[data-fragment-selector]",
                     ".month-heading h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)",
                     ".source-page-heading--untranscribed h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)");
             assertThat(javascript.body()).contains("initialiseMonthReader", "zoomAt", "window.history.pushState",
                     "window.history.replaceState", "pointermove", "ResizeObserver", "keydown", "aria-pressed",
                     "const previousSourcePoint = sourcePoint", "const currentSourcePoint = sourcePoint");
+            assertThat(javascript.body()).contains("toggle-display", "is-focus-mode", "Use highlight style");
+            assertThat(javascript.body()).contains("renderMarqueeTargets", "document.createElementNS",
+                    "selectFromMarquee", "scrollIntoView", "event.key !== 'Enter' && event.key !== ' '");
             assertThat(javascript.body()).doesNotContain("view.x = clamp", "view.y = clamp");
             assertThat(index.headers().firstValue("Content-Security-Policy"))
                     .hasValueSatisfying(value -> assertThat(value).contains("default-src 'none'", "form-action 'self'"));
