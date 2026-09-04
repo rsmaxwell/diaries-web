@@ -22,9 +22,9 @@ final class Validation {
         }
     }
 
-    static void nonNegativeFinite(double value, String name) {
-        if (!Double.isFinite(value) || value < 0) {
-            throw new IllegalArgumentException(name + " must be finite and non-negative");
+    static void finite(double value, String name) {
+        if (!Double.isFinite(value)) {
+            throw new IllegalArgumentException(name + " must be finite");
         }
     }
 

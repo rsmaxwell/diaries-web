@@ -1,0 +1,8 @@
+user publisher
+topic readwrite diaries/#
+
+user reader
+topic read diaries/diaries/+
+topic read diaries/pages/+
+topic read diaries/fragments/+
+topic read diaries/marquees/+

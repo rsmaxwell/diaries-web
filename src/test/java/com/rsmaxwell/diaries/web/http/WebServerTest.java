@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Test;
 
 import com.rsmaxwell.diaries.web.TestData;
 import com.rsmaxwell.diaries.web.buildinfo.BuildInfo;
+import com.rsmaxwell.diaries.web.model.MarqueeItem;
+import com.rsmaxwell.diaries.web.model.RectangleItem;
+import com.rsmaxwell.diaries.web.projection.ProjectionEvent;
 import com.rsmaxwell.diaries.web.projection.ProjectionService;
 
 class WebServerTest {
@@ -68,7 +71,7 @@ class WebServerTest {
             assertThat(month.body()).doesNotContain("<script>", "alert(1)",
                     ">Transcription</h2>", "Tuesday, 1 September 2026", "Wednesday, 2 September 2026",
                     "Selected source", "Original source: page 001", "fragment__source",
-                    ">Month reader</p>", "2 published fragments");
+                    ">Month reader</p>", "2 published fragments", "data-viewer-action=\"reset\"");
             assertThat(selected.statusCode()).isEqualTo(200);
             assertThat(selected.body()).contains("Previous fragment", "page 002",
                     "https://content.example.test/diaries/Family%20diary/page%20002.jpg");
@@ -86,9 +89,27 @@ class WebServerTest {
                     ".month-heading h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)",
                     ".source-page-heading--untranscribed h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)");
             assertThat(javascript.body()).contains("initialiseMonthReader", "zoomAt", "window.history.pushState",
-                    "window.history.replaceState", "pointermove", "ResizeObserver", "keydown", "aria-pressed");
+                    "window.history.replaceState", "pointermove", "ResizeObserver", "keydown", "aria-pressed",
+                    "const previousSourcePoint = sourcePoint", "const currentSourcePoint = sourcePoint");
+            assertThat(javascript.body()).doesNotContain("view.x = clamp", "view.y = clamp");
             assertThat(index.headers().firstValue("Content-Security-Policy"))
                     .hasValueSatisfying(value -> assertThat(value).contains("default-src 'none'", "form-action 'self'"));
+        }
+    }
+
+    @Test
+    void acceptsAndClipsAMarqueeWhichExtendsBeyondThePageOrigin() throws Exception {
+        try (ProjectionService projection = TestData.readyProjection(); WebServer server = server(projection)) {
+            projection.accept(new ProjectionEvent.UpsertMarquee(
+                    new MarqueeItem(44, 6, 22, 33, new RectangleItem(-10, -20, 300, 200)))).join();
+            server.start();
+
+            HttpResponse<String> month = get(server, "/reader/diaries/11/2026/09?fragment=33");
+
+            assertThat(month.statusCode()).isEqualTo(200);
+            assertThat(month.body()).contains(
+                    "data-marquee-x=\"0.0\"", "data-marquee-y=\"0.0\"",
+                    "data-marquee-width=\"290.0\"", "data-marquee-height=\"180.0\"");
         }
     }
 
