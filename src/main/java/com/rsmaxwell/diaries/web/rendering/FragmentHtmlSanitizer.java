@@ -13,25 +13,52 @@ public final class FragmentHtmlSanitizer {
     private final PolicyFactory policy;
 
     public FragmentHtmlSanitizer() {
-        this.policy = new HtmlPolicyBuilder()
+        this.policy = createPolicy(null);
+    }
+
+    private static PolicyFactory createPolicy(String legacyImageBaseUrl) {
+        return new HtmlPolicyBuilder()
                 .allowElements(
                         "p", "div", "span", "br", "strong", "b", "em", "i", "u", "s", "strike",
                         "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li",
-                        "sub", "sup", "blockquote", "pre", "code", "a", "img")
+                        "sub", "sup", "blockquote", "pre", "code", "a", "img", "figure", "figcaption")
                 .allowAttributes("class").matching(true, "ql-align-center", "ql-align-right", "ql-align-justify",
                         "ql-indent-1", "ql-indent-2", "ql-indent-3", "ql-indent-4", "ql-indent-5",
                         "ql-size-small", "ql-size-large", "ql-size-huge")
                 .onElements("div", "span", "p", "h1", "h2", "h3", "li")
-                .allowAttributes("href", "title").onElements("a")
-                .allowAttributes("src", "alt", "title", "width", "height").onElements("img")
+                .allowAttributes("title").onElements("a")
+                .allowAttributes("href")
+                    .matching((elementName, attributeName, value) ->
+                            rewriteLegacyImageAttribute(value, legacyImageBaseUrl))
+                    .onElements("a")
+                .allowAttributes("alt", "title", "width", "height").onElements("img")
+                .allowAttributes("src")
+                    .matching((elementName, attributeName, value) ->
+                            rewriteLegacyImageAttribute(value, legacyImageBaseUrl))
+                    .onElements("img")
                 .allowStandardUrlProtocols()
                 .requireRelNofollowOnLinks()
                 .toFactory();
     }
 
     public String sanitize(String html) {
+        return sanitizeWithPolicy(html, policy);
+    }
+
+    public String sanitize(String html, String legacyImageBaseUrl) {
+        return sanitizeWithPolicy(html, createPolicy(legacyImageBaseUrl));
+    }
+
+    private static String sanitizeWithPolicy(String html, PolicyFactory policy) {
         String normalized = normalizeNonBreakingSpaces(html == null ? "" : html);
         return normalizeNonBreakingSpaces(policy.sanitize(normalized));
+    }
+
+    private static String rewriteLegacyImageAttribute(String value, String legacyImageBaseUrl) {
+        if (legacyImageBaseUrl == null || legacyImageBaseUrl.isBlank()) {
+            return value;
+        }
+        return LegacyImageUrlResolver.resolve(value, legacyImageBaseUrl);
     }
 
     private static String normalizeNonBreakingSpaces(String html) {

@@ -305,7 +305,9 @@ public final class WebServer implements AutoCloseable {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("id", fragment.id());
         view.put("anchor", "fragment-" + fragment.id());
-        view.put("html", sanitizer.sanitize(fragment.text()));
+        view.put("html", sanitizer.sanitize(
+                fragment.text(),
+                imageUrlBuilder.legacyFragmentImageBaseUrl(resolved.diary())));
         view.put("url", urls.monthFragment(resolved.diary().id(), month, fragment.id()));
         view.put("date", dateFormatter.format(fragment.date()));
         view.put("selected", selected);
@@ -357,7 +359,9 @@ public final class WebServer implements AutoCloseable {
             Map<String, Object> view = new LinkedHashMap<>();
             view.put("id", fragment.id());
             view.put("anchor", "fragment-" + fragment.id());
-            view.put("html", sanitizer.sanitize(fragment.text()));
+            view.put("html", sanitizer.sanitize(
+                    fragment.text(),
+                    imageUrlBuilder.legacyFragmentImageBaseUrl(diary)));
             view.put("monthUrl", urls.monthFragment(diaryId, YearMonth.from(fragment.date()), fragment.id()));
             view.put("date", dateFormatter.format(fragment.date()));
             view.put("x", resolved.marquee().rectangle().x());

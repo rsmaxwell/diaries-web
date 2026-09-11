@@ -25,6 +25,13 @@ public final class ImageUrlBuilder {
                 + extension;
     }
 
+    public String legacyFragmentImageBaseUrl(DiaryItem diary) {
+        return config.publicResponderBaseUrl()
+                + "/files/"
+                + encodeSegment(diary.name())
+                + "/images";
+    }
+
     static String encodeSegment(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8)
                 .replace("+", "%20");

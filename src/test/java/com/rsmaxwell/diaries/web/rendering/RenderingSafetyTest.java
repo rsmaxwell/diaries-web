@@ -31,6 +31,20 @@ class RenderingSafetyTest {
     }
 
     @Test
+    void resolvesOnlySafeLegacyImagePaths() {
+        String result = new FragmentHtmlSanitizer().sanitize(
+                "<a href=\"images/map large.png\"><img src=\"images/map large.png\"></a>"
+                        + "<img src=\"images/maps/nested.png\"><img src=\"https://example.test/map.png\">",
+                "http://localhost:8081/files/diary%20one/images");
+
+        assertThat(result)
+                .contains("href=\"http://localhost:8081/files/diary%20one/images/map%20large.png\"")
+                .contains("src=\"http://localhost:8081/files/diary%20one/images/map%20large.png\"")
+                .contains("src=\"https://example.test/map.png\"")
+                .doesNotContain("images/maps/nested.png");
+    }
+
+    @Test
     void buildsSegmentEncodedResponderImageUrlUsingExistingConvention() {
         ImageUrlBuilder builder = new ImageUrlBuilder(new ContentConfig(
                 "http://responder:8080", "https://content.example.test", "diaries"));
@@ -39,5 +53,7 @@ class RenderingSafetyTest {
 
         assertThat(builder.pageImageUrl(diary, page))
                 .isEqualTo("https://content.example.test/diaries/Family%20%26%20Friends/page%20001.jpg");
+        assertThat(builder.legacyFragmentImageBaseUrl(diary))
+                .isEqualTo("https://content.example.test/files/Family%20%26%20Friends/images");
     }
 }

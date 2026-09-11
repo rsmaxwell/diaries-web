@@ -112,6 +112,14 @@ marquee. Fragment HTML is sanitized with an explicit OWASP allowlist before
 template rendering. Security headers include a restrictive CSP, and
 generation-based ETags support conditional GETs.
 
+As a temporary migration compatibility measure, sanitized fragment HTML
+resolves the old importer form `images/<filename>` to
+`{content.publicResponderBaseUrl}/files/{diary}/images/{filename}`. The resolver
+accepts only a single filename with a supported image extension and removes
+invalid legacy-looking links rather than allowing route-relative resolution.
+Absolute URLs and other non-legacy values retain the sanitizer's normal policy.
+New data should use explicit IMAGE-fragment metadata instead.
+
 `/health/live` reports process/HTTP health. `/health/ready` is 200 only after a
 complete projection generation is available; otherwise it returns 503. Health
 and HTML output contain counts and build metadata, never MQTT credentials or
