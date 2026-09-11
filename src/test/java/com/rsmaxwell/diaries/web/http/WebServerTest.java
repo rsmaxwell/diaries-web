@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import com.rsmaxwell.diaries.web.TestData;
 import com.rsmaxwell.diaries.web.buildinfo.BuildInfo;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
+import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.RectangleItem;
 import com.rsmaxwell.diaries.web.projection.ProjectionEvent;
 import com.rsmaxwell.diaries.web.projection.ProjectionService;
@@ -33,6 +35,7 @@ class WebServerTest {
             assertThat(live.statusCode()).isEqualTo(200);
             assertThat(live.body()).contains("\"status\":\"UP\"");
             assertThat(ready.statusCode()).isEqualTo(503);
+            assertThat(ready.body()).contains("\"relationships\"", "\"fragmentsWithoutPageId\"");
             assertThat(content.statusCode()).isEqualTo(503);
             assertThat(content.headers().firstValue("Retry-After")).contains("3");
             assertThat(content.body()).contains("projection is synchronising");
@@ -117,6 +120,27 @@ class WebServerTest {
             assertThat(month.body()).contains(
                     "data-marquee-x=\"0.0\"", "data-marquee-y=\"0.0\"",
                     "data-marquee-width=\"290.0\"", "data-marquee-height=\"180.0\"");
+        }
+    }
+
+    @Test
+    void rendersPageOwnedFragmentWhenItsMarqueeIsUnavailable() throws Exception {
+        try (ProjectionService projection = TestData.readyProjection(); WebServer server = server(projection)) {
+            projection.accept(new ProjectionEvent.UpsertFragment(new FragmentItem(
+                    35, 0, 2026, 9, 3, java.math.BigDecimal.ONE, "<p>No marquee text</p>",
+                    22L, FragmentType.MARQUEE, null, null))).join();
+            server.start();
+
+            HttpResponse<String> month = get(server, "/reader/diaries/11/2026/09?fragment=35");
+            HttpResponse<String> source = get(server, "/reader/diaries/11/pages/22");
+
+            assertThat(month.statusCode()).isEqualTo(200);
+            assertThat(month.body()).contains("No marquee text", "data-has-marquee=\"false\"");
+            assertThat(month.body()).doesNotContain("reader-viewer is-focus-mode has-selection");
+            assertThat(source.statusCode()).isEqualTo(200);
+            assertThat(source.body()).contains("No marquee text");
+            assertThat(source.body()).doesNotContain("data-marquee-fragment=\"35\"",
+                    "data-fragment-selector=\"35\"");
         }
     }
 

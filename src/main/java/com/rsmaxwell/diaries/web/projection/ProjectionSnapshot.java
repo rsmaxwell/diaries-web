@@ -14,6 +14,7 @@ import java.util.TreeSet;
 
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 
@@ -103,9 +104,11 @@ public final class ProjectionSnapshot {
         pagesByDiary.values().forEach(items -> items.sort(PAGE_ORDER));
 
         Map<Long, List<MarqueeItem>> marqueesByPage = new HashMap<>();
+        Map<Long, List<MarqueeItem>> marqueesByFragment = new HashMap<>();
         int marqueesWithoutPage = 0;
         int marqueesWithoutFragment = 0;
         for (MarqueeItem marquee : state.marquees.values()) {
+            marqueesByFragment.computeIfAbsent(marquee.fragmentId(), ignored -> new ArrayList<>()).add(marquee);
             if (!state.pages.containsKey(marquee.pageId())) {
                 marqueesWithoutPage++;
             }
@@ -117,6 +120,7 @@ public final class ProjectionSnapshot {
             }
         }
         marqueesByPage.values().forEach(items -> items.sort(Comparator.comparingLong(MarqueeItem::id)));
+        marqueesByFragment.values().forEach(items -> items.sort(Comparator.comparingLong(MarqueeItem::id)));
 
         Map<Long, FragmentItem> fragmentByMarquee = new HashMap<>();
         Map<Long, ResolvedFragment> resolvedFragments = new HashMap<>();
@@ -124,33 +128,65 @@ public final class ProjectionSnapshot {
         Map<Long, TreeSet<LocalDate>> mutableDatesByDiary = new HashMap<>();
         Map<DiaryMonthKey, List<ResolvedFragment>> fragmentsByMonth = new HashMap<>();
         Map<Long, TreeSet<YearMonth>> mutableMonthsByDiary = new HashMap<>();
-        int fragmentsWithoutMarquee = 0;
+        int fragmentsWithoutPageId = 0;
+        int fragmentsWithMissingPage = 0;
+        int fragmentPagesWithoutDiary = 0;
+        int marqueeFragmentsWithoutMarquee = 0;
         int inconsistentLinks = 0;
+        int inconsistentPages = 0;
+        int unsupportedImageFragments = 0;
+        int legacyTypeFallbacks = 0;
 
         for (FragmentItem fragment : state.fragments.values()) {
-            if (fragment.marqueeId() == null) {
-                fragmentsWithoutMarquee++;
+            if (fragment.type() == null) {
+                legacyTypeFallbacks++;
+            }
+            if (fragment.pageId() == null) {
+                fragmentsWithoutPageId++;
                 continue;
             }
-            MarqueeItem marquee = state.marquees.get(fragment.marqueeId());
-            if (marquee == null) {
-                fragmentsWithoutMarquee++;
-                continue;
-            }
-            if (marquee.fragmentId() != fragment.id()) {
-                inconsistentLinks++;
-                continue;
-            }
-            fragmentByMarquee.put(marquee.id(), fragment);
-            PageItem page = state.pages.get(marquee.pageId());
+            PageItem page = state.pages.get(fragment.pageId());
             if (page == null) {
+                fragmentsWithMissingPage++;
                 continue;
             }
             DiaryItem diary = state.diaries.get(page.diaryId());
             if (diary == null) {
+                fragmentPagesWithoutDiary++;
                 continue;
             }
-            ResolvedFragment resolved = new ResolvedFragment(fragment, marquee, page, diary);
+
+            MarqueeItem marquee = null;
+            if (fragment.effectiveType() == FragmentType.MARQUEE) {
+                List<MarqueeItem> linkedMarquees = marqueesByFragment.getOrDefault(fragment.id(), List.of());
+                if (linkedMarquees.isEmpty()) {
+                    marqueeFragmentsWithoutMarquee++;
+                } else {
+                    MarqueeItem candidate = linkedMarquees.stream()
+                            .filter(value -> value.pageId() == fragment.pageId())
+                            .findFirst()
+                            .orElse(linkedMarquees.get(0));
+                    if (candidate.pageId() != fragment.pageId()) {
+                        inconsistentPages++;
+                    } else {
+                        marquee = candidate;
+                        fragmentByMarquee.put(candidate.id(), fragment);
+                    }
+                }
+
+                // marqueeId remains compatibility metadata. Diagnose a conflicting
+                // pointer, but never use it to establish Fragment ownership.
+                if (fragment.marqueeId() != null) {
+                    MarqueeItem compatibilityMarquee = state.marquees.get(fragment.marqueeId());
+                    if (compatibilityMarquee != null && compatibilityMarquee.fragmentId() != fragment.id()) {
+                        inconsistentLinks++;
+                    }
+                }
+            } else {
+                unsupportedImageFragments++;
+            }
+
+            ResolvedFragment resolved = new ResolvedFragment(fragment, Optional.ofNullable(marquee), page, diary);
             resolvedFragments.put(fragment.id(), resolved);
             DiaryDayKey key = new DiaryDayKey(diary.id(), fragment.date());
             fragmentsByDay.computeIfAbsent(key, ignored -> new ArrayList<>()).add(fragment);
@@ -174,8 +210,14 @@ public final class ProjectionSnapshot {
                 pagesWithoutDiary,
                 marqueesWithoutPage,
                 marqueesWithoutFragment,
-                fragmentsWithoutMarquee,
-                inconsistentLinks);
+                fragmentsWithoutPageId,
+                fragmentsWithMissingPage,
+                fragmentPagesWithoutDiary,
+                marqueeFragmentsWithoutMarquee,
+                inconsistentLinks,
+                inconsistentPages,
+                unsupportedImageFragments,
+                legacyTypeFallbacks);
 
         return new ProjectionSnapshot(
                 generation,

@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 import com.rsmaxwell.diaries.web.projection.ProjectionEvent;
@@ -86,6 +87,35 @@ class RetainedContractTest {
     }
 
     @Test
+    void decodesTypedAndLegacyFragmentPayloads() throws Exception {
+        ProjectionEvent typedEvent = decoder.decode("diaries/fragments/33", resource("/fixtures/fragment.json"));
+        FragmentItem typed = ((ProjectionEvent.UpsertFragment) typedEvent).value();
+        assertThat(typed.pageId()).isEqualTo(22);
+        assertThat(typed.type()).isEqualTo(FragmentType.MARQUEE);
+        assertThat(typed.effectiveType()).isEqualTo(FragmentType.MARQUEE);
+
+        ProjectionEvent legacyEvent = decoder.decode(
+                "diaries/fragments/33", resource("/fixtures/fragment-legacy.json"));
+        FragmentItem legacy = ((ProjectionEvent.UpsertFragment) legacyEvent).value();
+        assertThat(legacy.pageId()).isNull();
+        assertThat(legacy.type()).isNull();
+        assertThat(legacy.effectiveType()).isEqualTo(FragmentType.MARQUEE);
+    }
+
+    @Test
+    void decodesExplicitImageAndIgnoresUnknownFields() throws Exception {
+        byte[] payload = ("{\"id\":50,\"version\":0,\"year\":2026,\"month\":9,\"day\":2,"
+                + "\"sequence\":1,\"text\":\"image\",\"pageId\":22,\"type\":\"IMAGE\","
+                + "\"imageId\":60,\"futureField\":true}").getBytes(StandardCharsets.UTF_8);
+
+        FragmentItem image = ((ProjectionEvent.UpsertFragment)
+                decoder.decode("diaries/fragments/50", payload)).value();
+        assertThat(image.type()).isEqualTo(FragmentType.IMAGE);
+        assertThat(image.imageId()).isEqualTo(60);
+        assertThat(image.marqueeId()).isNull();
+    }
+
+    @Test
     void rejectsPayloadIdMismatchAndInvalidRequiredFields() {
         assertThatThrownBy(() -> decoder.decode("diaries/diaries/12", resource("/fixtures/diary.json")))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -95,6 +125,25 @@ class RetainedContractTest {
                 "{\"id\":22,\"version\":0,\"diaryId\":11,\"name\":\"p\",\"sequence\":1,\"extension\":\"../jpg\",\"width\":1,\"height\":1}"
                         .getBytes(StandardCharsets.UTF_8)))
                 .hasRootCauseInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsInvalidPresentFragmentRelationships() {
+        assertThatThrownBy(() -> decoder.decode(
+                "diaries/fragments/50",
+                ("{\"id\":50,\"version\":0,\"year\":2026,\"month\":9,\"day\":2,"
+                        + "\"sequence\":1,\"text\":\"invalid page\",\"pageId\":0,\"type\":\"MARQUEE\"}")
+                        .getBytes(StandardCharsets.UTF_8)))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pageId");
+
+        assertThatThrownBy(() -> decoder.decode(
+                "diaries/fragments/50",
+                ("{\"id\":50,\"version\":0,\"year\":2026,\"month\":9,\"day\":2,"
+                        + "\"sequence\":1,\"text\":\"invalid type\",\"pageId\":22,\"type\":\"VIDEO\"}")
+                        .getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(java.io.IOException.class)
+                .hasMessageContaining("FragmentType");
     }
 
     private static byte[] resource(String name) throws Exception {

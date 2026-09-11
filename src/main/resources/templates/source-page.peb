@@ -15,12 +15,14 @@
       <desc id="source-description">The scanned diary page. The selected transcript region is highlighted.</desc>
       <image href="{{ page.imageUrl }}" width="{{ page.width }}" height="{{ page.height }}"></image>
       {% for fragment in fragments %}
+      {% if fragment.hasMarquee %}
       <a class="marquee-link"
          data-marquee-fragment="{{ fragment.id }}"
          href="#{{ fragment.anchor }}"
          aria-label="Read transcript for {{ fragment.date }}">
         <rect class="marquee" x="{{ fragment.x }}" y="{{ fragment.y }}" width="{{ fragment.width }}" height="{{ fragment.height }}"></rect>
       </a>
+      {% endif %}
       {% endfor %}
     </svg>
     <figcaption>If the scan does not load, use the transcript links below.</figcaption>
@@ -35,10 +37,10 @@
                data-transcript-fragment="{{ fragment.id }}">
         <div class="fragment__heading">
           <h3><a href="{{ fragment.monthUrl }}">{{ fragment.date }}</a></h3>
-          <button class="fragment__selector"
+          {% if fragment.hasMarquee %}<button class="fragment__selector"
                   type="button"
                   data-fragment-selector="{{ fragment.id }}"
-                  aria-pressed="false">Show on original page</button>
+                  aria-pressed="false">Show on original page</button>{% endif %}
         </div>
         <div class="fragment__content">{{ fragment.html | raw }}</div>
       </article>

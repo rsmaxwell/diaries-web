@@ -6,6 +6,7 @@ import java.time.Duration;
 import com.rsmaxwell.diaries.web.config.AppConfig;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 import com.rsmaxwell.diaries.web.model.RectangleItem;
@@ -27,7 +28,7 @@ public final class TestData {
     public static FragmentItem fragment() {
         return new FragmentItem(
                 33, 4, 2026, 9, 1, new BigDecimal("3.5"),
-                "<p>A diary entry<script>alert(1)</script></p>", 44L);
+                "<p>A diary entry<script>alert(1)</script></p>", 22L, FragmentType.MARQUEE, null, 44L);
     }
 
     public static MarqueeItem marquee() {
@@ -49,11 +50,11 @@ public final class TestData {
                 new PageItem(24, 1, 11, "page 003", new BigDecimal("4.0"), "jpg", 1200, 800))).join();
         service.accept(new ProjectionEvent.UpsertFragment(
                 new FragmentItem(32, 1, 2026, 8, 31, new BigDecimal("1.0"),
-                        "<p>An earlier entry</p>", 43L))).join();
+                        "<p>An earlier entry</p>", 22L, FragmentType.MARQUEE, null, 43L))).join();
         service.accept(new ProjectionEvent.UpsertFragment(fragment())).join();
         service.accept(new ProjectionEvent.UpsertFragment(
                 new FragmentItem(34, 1, 2026, 9, 2, new BigDecimal("4.0"),
-                        "<p>A later entry</p>", 45L))).join();
+                        "<p>A later entry</p>", 23L, FragmentType.MARQUEE, null, 45L))).join();
         service.accept(new ProjectionEvent.UpsertMarquee(
                 new MarqueeItem(43, 1, 22, 32, new RectangleItem(5, 10, 100, 75)))).join();
         service.accept(new ProjectionEvent.UpsertMarquee(marquee())).join();

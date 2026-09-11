@@ -22,6 +22,7 @@ import com.rsmaxwell.diaries.web.buildinfo.BuildInfo;
 import com.rsmaxwell.diaries.web.config.AppConfig;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 import com.rsmaxwell.diaries.web.model.RectangleItem;
 import com.rsmaxwell.diaries.web.projection.ProjectionService;
@@ -296,12 +297,12 @@ public final class WebServer implements AutoCloseable {
     private Map<String, Object> fragmentView(ResolvedFragment resolved, YearMonth month, boolean selected) {
         FragmentItem fragment = resolved.fragment();
         PageItem page = resolved.page();
-        RectangleItem rectangle = resolved.marquee().rectangle();
-        double x = Math.min(page.width(), Math.max(0, rectangle.x()));
-        double y = Math.min(page.height(), Math.max(0, rectangle.y()));
-        double right = Math.min(page.width(), rectangle.x() + rectangle.width());
-        double bottom = Math.min(page.height(), rectangle.y() + rectangle.height());
-        boolean hasMarquee = right > x && bottom > y;
+        RectangleItem rectangle = resolved.marquee().map(MarqueeItem::rectangle).orElse(null);
+        double x = rectangle == null ? 0 : Math.min(page.width(), Math.max(0, rectangle.x()));
+        double y = rectangle == null ? 0 : Math.min(page.height(), Math.max(0, rectangle.y()));
+        double right = rectangle == null ? 0 : Math.min(page.width(), rectangle.x() + rectangle.width());
+        double bottom = rectangle == null ? 0 : Math.min(page.height(), rectangle.y() + rectangle.height());
+        boolean hasMarquee = rectangle != null && right > x && bottom > y;
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("id", fragment.id());
         view.put("anchor", "fragment-" + fragment.id());
@@ -364,10 +365,13 @@ public final class WebServer implements AutoCloseable {
                     imageUrlBuilder.legacyFragmentImageBaseUrl(diary)));
             view.put("monthUrl", urls.monthFragment(diaryId, YearMonth.from(fragment.date()), fragment.id()));
             view.put("date", dateFormatter.format(fragment.date()));
-            view.put("x", resolved.marquee().rectangle().x());
-            view.put("y", resolved.marquee().rectangle().y());
-            view.put("width", resolved.marquee().rectangle().width());
-            view.put("height", resolved.marquee().rectangle().height());
+            boolean hasMarquee = resolved.marquee().isPresent();
+            view.put("hasMarquee", hasMarquee);
+            RectangleItem rectangle = resolved.marquee().map(MarqueeItem::rectangle).orElse(null);
+            view.put("x", rectangle == null ? 0 : rectangle.x());
+            view.put("y", rectangle == null ? 0 : rectangle.y());
+            view.put("width", rectangle == null ? 0 : rectangle.width());
+            view.put("height", rectangle == null ? 0 : rectangle.height());
             fragments.add(view);
         }
         Map<String, Object> model = commonModel(page.name() + " – " + diary.name(), ctx);
@@ -426,6 +430,7 @@ public final class WebServer implements AutoCloseable {
         payload.put("marquees", snapshot.marqueesById().size());
         payload.put("invalidMessages", status.invalidMessageCount());
         payload.put("tombstones", status.tombstoneCount());
+        payload.put("relationships", snapshot.relationshipDiagnostics());
         payload.put("lastAcceptedUpdateAt", status.lastAcceptedUpdateAt() == null
                 ? null : status.lastAcceptedUpdateAt().toString());
         return payload;

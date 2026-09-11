@@ -4,6 +4,12 @@ public record RelationshipDiagnostics(
         int pagesWithoutDiary,
         int marqueesWithoutPage,
         int marqueesWithoutFragment,
-        int fragmentsWithoutMarquee,
-        int inconsistentFragmentMarqueeLinks) {
+        int fragmentsWithoutPageId,
+        int fragmentsWithMissingPage,
+        int fragmentPagesWithoutDiary,
+        int marqueeFragmentsWithoutMarquee,
+        int inconsistentFragmentMarqueeLinks,
+        int inconsistentFragmentMarqueePages,
+        int unsupportedImageFragments,
+        int legacyTypeFallbacks) {
 }

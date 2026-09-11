@@ -12,6 +12,9 @@ public record FragmentItem(
         int day,
         BigDecimal sequence,
         String text,
+        Long pageId,
+        FragmentType type,
+        Long imageId,
         Long marqueeId) {
 
     public FragmentItem {
@@ -19,6 +22,12 @@ public record FragmentItem(
         Validation.nonNegative(version, "fragment version");
         sequence = Validation.notNull(sequence, "fragment sequence");
         text = Validation.notNull(text, "fragment text");
+        if (pageId != null) {
+            Validation.positiveId(pageId, "fragment pageId");
+        }
+        if (imageId != null) {
+            Validation.positiveId(imageId, "fragment imageId");
+        }
         if (marqueeId != null) {
             Validation.positiveId(marqueeId, "fragment marqueeId");
         }
@@ -31,5 +40,10 @@ public record FragmentItem(
 
     public LocalDate date() {
         return LocalDate.of(year, month, day);
+    }
+
+    /** Null is the documented rolling-migration compatibility state. */
+    public FragmentType effectiveType() {
+        return type == null ? FragmentType.MARQUEE : type;
     }
 }

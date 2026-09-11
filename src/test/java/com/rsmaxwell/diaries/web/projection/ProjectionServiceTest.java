@@ -20,6 +20,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.mqtt.EntityType;
 
@@ -49,9 +50,9 @@ class ProjectionServiceTest {
     @Test
     void sortsNumericallyThenByIdAndPublishesImmutableSnapshots() {
         FragmentItem firstById = new FragmentItem(31, 0, 2026, 9, 1,
-                new BigDecimal("2.00"), "one", 41L);
+                new BigDecimal("2.00"), "one", 22L, FragmentType.MARQUEE, null, 41L);
         FragmentItem lowerSequence = new FragmentItem(32, 0, 2026, 9, 1,
-                new BigDecimal("1.9"), "two", 42L);
+                new BigDecimal("1.9"), "two", 22L, FragmentType.MARQUEE, null, 42L);
         var marquee31 = new com.rsmaxwell.diaries.web.model.MarqueeItem(
                 41, 0, 22, 31, marquee().rectangle());
         var marquee32 = new com.rsmaxwell.diaries.web.model.MarqueeItem(
@@ -126,6 +127,111 @@ class ProjectionServiceTest {
     }
 
     @Test
+    void keepsPageOwnedMarqueeFragmentInChronologyWhenMarqueeIsMissing() {
+        FragmentItem withoutMarquee = new FragmentItem(
+                35, 0, 2026, 9, 3, new BigDecimal("1.0"), "no marquee",
+                22L, FragmentType.MARQUEE, null, null);
+
+        try (ProjectionService service = service()) {
+            startReplay(service, List.of(
+                    new ProjectionEvent.UpsertDiary(diary()),
+                    new ProjectionEvent.UpsertPage(page()),
+                    new ProjectionEvent.UpsertFragment(withoutMarquee)));
+
+            assertThat(service.snapshot().resolveFragment(35)).isPresent();
+            assertThat(service.snapshot().resolveFragment(35).orElseThrow().marquee()).isEmpty();
+            assertThat(service.snapshot().fragmentsForDay(11, withoutMarquee.date()))
+                    .extracting(FragmentItem::id)
+                    .containsExactly(35L);
+            assertThat(service.snapshot().relationshipDiagnostics().marqueeFragmentsWithoutMarquee())
+                    .isEqualTo(1);
+        }
+    }
+
+    @Test
+    void fragmentPageOwnershipWinsOverMismatchedMarqueePage() {
+        FragmentItem fragment = new FragmentItem(
+                36, 0, 2026, 9, 4, new BigDecimal("1.0"), "mismatch",
+                22L, FragmentType.MARQUEE, null, 46L);
+        MarqueeItem wrongPage = new MarqueeItem(46, 0, 23, 36, marquee().rectangle());
+
+        try (ProjectionService service = service()) {
+            startReplay(service, List.of(
+                    new ProjectionEvent.UpsertDiary(diary()),
+                    new ProjectionEvent.UpsertPage(page()),
+                    new ProjectionEvent.UpsertPage(
+                            new com.rsmaxwell.diaries.web.model.PageItem(
+                                    23, 0, 11, "other", BigDecimal.TEN, "jpg", 100, 100)),
+                    new ProjectionEvent.UpsertFragment(fragment),
+                    new ProjectionEvent.UpsertMarquee(wrongPage)));
+
+            var resolved = service.snapshot().resolveFragment(36).orElseThrow();
+            assertThat(resolved.page().id()).isEqualTo(22);
+            assertThat(resolved.marquee()).isEmpty();
+            assertThat(service.snapshot().relationshipDiagnostics().inconsistentFragmentMarqueePages())
+                    .isEqualTo(1);
+        }
+    }
+
+    @Test
+    void discoversMarqueeByFragmentLinkInsteadOfCompatibilityMarqueeId() {
+        FragmentItem fragment = new FragmentItem(
+                37, 0, 2026, 9, 5, new BigDecimal("1.0"), "stale compatibility id",
+                22L, FragmentType.MARQUEE, null, 999L);
+        MarqueeItem linked = new MarqueeItem(47, 0, 22, 37, marquee().rectangle());
+
+        try (ProjectionService service = service()) {
+            startReplay(service, List.of(
+                    new ProjectionEvent.UpsertDiary(diary()),
+                    new ProjectionEvent.UpsertPage(page()),
+                    new ProjectionEvent.UpsertFragment(fragment),
+                    new ProjectionEvent.UpsertMarquee(linked)));
+
+            var resolved = service.snapshot().resolveFragment(37).orElseThrow();
+            assertThat(resolved.marquee()).contains(linked);
+            assertThat(service.snapshot().fragmentByMarqueeId()).containsEntry(47L, fragment);
+        }
+    }
+
+    @Test
+    void reportsTypedPageOwnershipDiagnosticsWithoutGuessingRelationships() {
+        FragmentItem noPageLegacy = new FragmentItem(
+                38, 0, 2026, 9, 6, BigDecimal.ONE, "legacy no page",
+                null, null, null, null);
+        FragmentItem missingPage = new FragmentItem(
+                39, 0, 2026, 9, 7, BigDecimal.ONE, "missing page",
+                999L, FragmentType.MARQUEE, null, null);
+        FragmentItem missingDiary = new FragmentItem(
+                40, 0, 2026, 9, 8, BigDecimal.ONE, "missing diary",
+                23L, FragmentType.MARQUEE, null, null);
+        FragmentItem image = new FragmentItem(
+                41, 0, 2026, 9, 9, BigDecimal.ONE, "future image",
+                22L, FragmentType.IMAGE, 51L, null);
+
+        try (ProjectionService service = service()) {
+            startReplay(service, List.of(
+                    new ProjectionEvent.UpsertDiary(diary()),
+                    new ProjectionEvent.UpsertPage(page()),
+                    new ProjectionEvent.UpsertPage(
+                            new com.rsmaxwell.diaries.web.model.PageItem(
+                                    23, 0, 99, "orphan", BigDecimal.TEN, "jpg", 100, 100)),
+                    new ProjectionEvent.UpsertFragment(noPageLegacy),
+                    new ProjectionEvent.UpsertFragment(missingPage),
+                    new ProjectionEvent.UpsertFragment(missingDiary),
+                    new ProjectionEvent.UpsertFragment(image)));
+
+            var diagnostics = service.snapshot().relationshipDiagnostics();
+            assertThat(diagnostics.fragmentsWithoutPageId()).isEqualTo(1);
+            assertThat(diagnostics.fragmentsWithMissingPage()).isEqualTo(1);
+            assertThat(diagnostics.fragmentPagesWithoutDiary()).isEqualTo(1);
+            assertThat(diagnostics.unsupportedImageFragments()).isEqualTo(1);
+            assertThat(diagnostics.legacyTypeFallbacks()).isEqualTo(1);
+            assertThat(service.snapshot().resolveFragment(38)).isEmpty();
+            assertThat(service.snapshot().resolveFragment(41)).isPresent();
+        }
+    }
+
+    @Test
     void replayReadinessRequiresAcknowledgementAndQuietnessAndEmptyReplayIsValid() {
         try (ProjectionService service = service()) {
             service.beginReplay(false).join();
@@ -191,7 +297,8 @@ class ProjectionServiceTest {
             String sequence,
             long marqueeId) {
         return new FragmentItem(
-                id, 0, year, month, day, new BigDecimal(sequence), "fragment " + id, marqueeId);
+                id, 0, year, month, day, new BigDecimal(sequence), "fragment " + id,
+                page().id(), FragmentType.MARQUEE, null, marqueeId);
     }
 
     private static MarqueeItem linkedMarquee(long id, long fragmentId) {
