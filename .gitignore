@@ -6,3 +6,6 @@ build/
 .settings/
 config/local.json
 *.log
+
+bin/
+build/
