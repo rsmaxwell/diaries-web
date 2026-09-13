@@ -43,7 +43,9 @@
         <title id="viewer-title">Original page <tspan data-svg-page-name>{{ viewer.pageName }}</tspan></title>
         <desc id="viewer-description">The scanned diary page with only the selected transcription region highlighted.</desc>
         <defs>
-          <mask id="viewer-selection-mask" maskUnits="userSpaceOnUse">
+          {# Cover the dimming rectangle, independent of the zoomed viewBox; keep the cutout in page coordinates. #}
+          <mask id="viewer-selection-mask" maskUnits="objectBoundingBox" maskContentUnits="userSpaceOnUse"
+                x="0" y="0" width="1" height="1">
             <rect data-viewer-mask-base x="0" y="0" width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}" fill="white"></rect>
             <rect data-viewer-mask-selection x="{{ viewer.x }}" y="{{ viewer.y }}"
                   width="{{ viewer.width }}" height="{{ viewer.height }}" fill="black"></rect>

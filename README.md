@@ -174,6 +174,26 @@ Paho MQTT v5, Log4j and JUnit.
 
 ## Troubleshooting
 
+- `installDist` says the installation directory is neither empty nor an
+  installation: inspect `build/install/diaries-web`. A directory containing
+  only dependency JARs under `lib`, with no `bin`, is incomplete. `build.bat`
+  builds the distribution archives but does not repair this installed copy.
+  For this specific generated-files-only case, stop the web application and
+  restore the missing launchers, then let `installDist` refresh the distribution.
+  From the parent `diaries` directory in PowerShell:
+
+  ```powershell
+  .\gradlew.bat :diaries-web:startScripts
+  if ($LASTEXITCODE -ne 0) { throw 'Launcher generation failed' }
+  $webInstall = 'diaries-web/build/install/diaries-web'
+  New-Item -ItemType Directory -Path "$webInstall/bin" -ErrorAction Stop
+  Copy-Item -LiteralPath 'diaries-web/build/scripts/diaries-web', 'diaries-web/build/scripts/diaries-web.bat' -Destination "$webInstall/bin" -ErrorAction Stop
+  .\gradlew.bat :diaries-web:installDist
+  if ($LASTEXITCODE -ne 0) { throw 'Distribution installation failed' }
+  ```
+
+  Use this repair only when `bin` is absent and the remaining contents are
+  generated dependency JARs. Investigate other contents before replacing them.
 - Persistent 503: inspect `/health/ready`, broker reachability, credentials,
   ACL filters and retained replay timeout.
 - Missing fragment: inspect relationship counts and confirm its marquee, page

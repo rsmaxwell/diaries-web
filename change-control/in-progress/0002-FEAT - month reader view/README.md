@@ -60,3 +60,27 @@ For a visual smoke test:
 
 Then open `http://127.0.0.1:18082` and verify desktop, keyboard and narrow
 viewport interactions.
+
+## Zoom shading correction — 2026-09-13
+
+The focus-style shading could stop short of the source image's right and
+bottom edges after zooming. The mask used `userSpaceOnUse` with unspecified
+bounds: its default percentage bounds changed with the SVG viewport, clipping
+the full-page dimming rectangle as the viewBox became smaller.
+
+`month-reader.peb` now explicitly bounds the mask to the dimming rectangle's
+whole object bounding box (`x=0`, `y=0`, `width=1`, `height=1`). Mask contents
+remain in page coordinates (`maskContentUnits=userSpaceOnUse`), preserving the
+selected marquee cutout. The existing JavaScript already updates the dimming
+rectangle and mask contents on page changes; no zoom or selection logic changes
+are required. See the [SVG mask coordinate definitions](https://www.w3.org/TR/css-masking-1/#elementdef-mask).
+
+Validation: all 49 web tests passed with zero failures/errors/skips, and
+`:diaries-web:build` succeeded. Browser checks reproduced the old clipping on
+the reported June 1829 page and verified the changed template mask in an
+isolated HTML preview using that page's rendered DOM and current source assets.
+Zooming, panning, Fit selection, focus/highlight toggling and switching source
+pages preserved full-image shading outside the selected cutout. The live web
+service was not restarted; stop it and run `run-web.bat` to install and load the
+rebuilt template, then reload the browser page. No responder, MQTT or database
+changes were needed.
