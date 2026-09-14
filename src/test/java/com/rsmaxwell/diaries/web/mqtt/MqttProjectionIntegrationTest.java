@@ -130,6 +130,53 @@ class MqttProjectionIntegrationTest {
         }
     }
 
+    @Test
+    void imageCatalogueDoesNotChangeVisibleChronologyAcrossReaderRestarts() throws Exception {
+        String uri="tcp://"+MOSQUITTO.getHost()+":"+MOSQUITTO.getMappedPort(1883);
+        MqttAsyncClient publisher=connected(uri,"publisher",PUBLISHER_PASSWORD);
+        java.util.Map<String,String> baseline=null;
+        try {
+            retain(publisher,"diaries/diaries/11",fixture("diary.json"));
+            retain(publisher,"diaries/pages/22",fixture("page.json"));
+            retain(publisher,"diaries/fragments/33",fixture("fragment.json"));
+            retain(publisher,"diaries/marquees/44",fixture("marquee.json"));
+            for(int count:new int[]{0,1,3}) {
+                for(int id=1;id<=count;id++)retain(publisher,"diaries/images/"+id,
+                    catalogueImage(id));
+                try(ProjectionService projection=new ProjectionService(Duration.ofMillis(200),Duration.ofSeconds(5));
+                        MqttProjectionClient reader=new MqttProjectionClient(mqttConfig(MOSQUITTO.getHost(),MOSQUITTO.getMappedPort(1883)),new MqttCredentials("reader",READER_PASSWORD),projection);
+                        WebServer web=new WebServer(TestData.config(""),projection,new BuildInfo("diaries-web","phase9","test","test","test","test","test"))) {
+                    web.start();reader.start();
+                    await().atMost(Duration.ofSeconds(10)).until(()->projection.status().ready());
+                    java.util.Map<String,String> rendered=new java.util.LinkedHashMap<>();
+                    for(String route:java.util.List.of("/","/diaries/11","/diaries/11/2026/09?fragment=33","/diaries/11/pages/22"))rendered.put(route,get(web,route));
+                    assertThat(rendered.get("/diaries/11/2026/09?fragment=33")).contains("A diary entry","data-viewer-marquee","data-reader-fragment=\"33\"");
+                    assertThat(rendered.values()).allSatisfy(html->assertThat(html).doesNotContain("CATALOGUE_ONLY_TEXT"));
+                    if(baseline==null)baseline=rendered;else assertThat(rendered).isEqualTo(baseline);
+                    long invalid=projection.status().invalidMessageCount();
+                    retain(publisher,"diaries/images/99",catalogueImage(99));
+                    publisher.publish("diaries/images/99",new byte[0],1,true).waitForCompletion(5000);
+                    await().during(Duration.ofMillis(400)).atMost(Duration.ofSeconds(3)).untilAsserted(()->{
+                        assertThat(projection.status().ready()).isTrue();
+                        assertThat(projection.status().invalidMessageCount()).isEqualTo(invalid);
+                        for(var page:rendered.entrySet())assertThat(get(web,page.getKey())).isEqualTo(page.getValue());
+                    });
+                }
+            }
+        } finally {
+            for(int id:new int[]{1,2,3,99})publisher.publish("diaries/images/"+id,new byte[0],1,true).waitForCompletion(5000);
+            close(publisher);
+        }
+    }
+
+    private static String catalogueImage(int id) {
+        return """
+                {"id":%d,"version":0,"relativePath":"maps/image-%d.png","mimeType":"image/png",
+                 "originalFilename":"image-%d.png","width":16,"height":12,"checksum":"%s",
+                 "caption":"CATALOGUE_ONLY_TEXT","altText":""}
+                """.formatted(id,id,id,"ab".repeat(32));
+    }
+
     private static MqttConfig mqttConfig(String host, int port) {
         return new MqttConfig(host, port, "integration-reader", "diaries", 10, 3, 1, true);
     }
