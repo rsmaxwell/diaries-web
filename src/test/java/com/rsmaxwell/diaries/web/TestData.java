@@ -74,7 +74,8 @@ public final class TestData {
                 new AppConfig.ContentConfig(
                         "http://diaries-responder:8080",
                         "https://content.example.test",
-                        "diaries"),
+                        "diaries",
+                        "files"),
                 new AppConfig.SiteConfig("Diaries", "Read-only diary", "en-GB", "Europe/London"));
     }
 }

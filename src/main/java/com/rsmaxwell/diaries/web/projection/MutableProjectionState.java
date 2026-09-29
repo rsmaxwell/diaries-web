@@ -2,9 +2,12 @@ package com.rsmaxwell.diaries.web.projection;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 
@@ -13,6 +16,8 @@ final class MutableProjectionState {
     final Map<Long, PageItem> pages = new HashMap<>();
     final Map<Long, FragmentItem> fragments = new HashMap<>();
     final Map<Long, MarqueeItem> marquees = new HashMap<>();
+    final Map<Long, ImageItem> images = new HashMap<>();
+    final Set<Long> invalidImageIds = new HashSet<>();
 
     boolean apply(ProjectionEvent event) {
         return switch (event) {
@@ -20,13 +25,25 @@ final class MutableProjectionState {
             case ProjectionEvent.UpsertPage value -> putChanged(pages, value.value().id(), value.value());
             case ProjectionEvent.UpsertFragment value -> putChanged(fragments, value.value().id(), value.value());
             case ProjectionEvent.UpsertMarquee value -> putChanged(marquees, value.value().id(), value.value());
+            case ProjectionEvent.UpsertImage value -> {
+                boolean changed = putChanged(images, value.value().id(), value.value());
+                yield invalidImageIds.remove(value.value().id()) || changed;
+            }
             case ProjectionEvent.Tombstone value -> switch (value.type()) {
                 case DIARY -> diaries.remove(value.id()) != null;
                 case PAGE -> pages.remove(value.id()) != null;
                 case FRAGMENT -> fragments.remove(value.id()) != null;
                 case MARQUEE -> marquees.remove(value.id()) != null;
+                case IMAGE -> {
+                    boolean changed = images.remove(value.id()) != null;
+                    yield invalidImageIds.remove(value.id()) || changed;
+                }
             };
         };
+    }
+
+    boolean markInvalidImage(long imageId) {
+        return invalidImageIds.add(imageId);
     }
 
     private static <T> boolean putChanged(Map<Long, T> map, long id, T value) {

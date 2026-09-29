@@ -3,8 +3,8 @@
 `diaries-web` is a read-only, server-rendered projection. It complements and
 must not replace `diaries-client`, which remains the interactive editor.
 
-- Consume only the responder's canonical retained Diary, Page, Fragment and
-  Marquee lookup topics.
+- Consume only the responder's canonical retained Diary, Page, Fragment,
+  Marquee and Image lookup topics.
 - Do not add MQTT publishing, MQTT RPC, PostgreSQL/JPA, filesystem mutation,
   authentication editing flows, or content-changing HTTP routes without an
   explicit approved architecture change.

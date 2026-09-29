@@ -28,6 +28,7 @@ import com.rsmaxwell.diaries.web.projection.ProjectionService;
 
 public final class MqttProjectionClient implements AutoCloseable, MqttCallback {
     private static final Logger log = LoggerFactory.getLogger(MqttProjectionClient.class);
+    private static final int SUBSCRIPTION_QOS = 1;
 
     private final MqttConfig config;
     private final MqttCredentials credentials;
@@ -37,6 +38,8 @@ public final class MqttProjectionClient implements AutoCloseable, MqttCallback {
     private final ScheduledExecutorService lifecycle;
     private final AtomicBoolean connecting = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean acceptingMessages = new AtomicBoolean();
+    private final Object messageLock = new Object();
     private final MqttAsyncClient client;
     private final MqttConnectionOptions connectionOptions;
 
@@ -106,30 +109,93 @@ public final class MqttProjectionClient implements AutoCloseable, MqttCallback {
         if (closed.get()) {
             return;
         }
+
+        acceptingMessages.set(false);
         try {
             projection.beginReplay(reconnect).join();
             List<String> filters = topicParser.canonicalFilters();
+            MqttSubscription[] subscriptions = filters.stream()
+                    .map(filter -> new MqttSubscription(filter, SUBSCRIPTION_QOS))
+                    .toArray(MqttSubscription[]::new);
+
+            // Retained messages may arrive before the SUBACK has been returned. Accept them
+            // into staging, but do not publish the generation until every SUBACK code has
+            // been checked below.
+            acceptingMessages.set(true);
+            IMqttToken token = client.subscribe(subscriptions);
+            token.waitForCompletion(config.connectTimeoutSeconds() * 1000L);
+            requireSuccessfulSubAck(filters, token.getReasonCodes());
+
             for (String filter : filters) {
-                MqttSubscription subscription = new MqttSubscription(filter, 1);
-                client.subscribe(subscription).waitForCompletion(config.connectTimeoutSeconds() * 1000L);
                 log.info("Subscribed to canonical retained filter {}", filter);
             }
             projection.subscriptionsAcknowledged().join();
         } catch (Exception exception) {
-            projection.failed("MQTT subscription failed", exception);
-            log.error("Unable to subscribe to canonical MQTT filters", exception);
+            // A broker can grant some filters and reject another in the same SUBACK. Stop
+            // processing immediately before clearing staging so partial retained state can
+            // never leak into the active projection after the failed replay.
+            String detail = exception.getMessage();
+            String reason = detail == null || detail.isBlank()
+                    ? "MQTT subscription failed"
+                    : "MQTT subscription failed: " + detail;
+            java.util.concurrent.CompletableFuture<Void> failed;
+            synchronized (messageLock) {
+                acceptingMessages.set(false);
+                // Queue failure after every in-flight callback, never before its upsert.
+                failed = projection.failed(reason, exception);
+            }
+            failed.join();
+            log.error("Unable to subscribe to all canonical MQTT filters", exception);
+        }
+    }
+
+    static void requireSuccessfulSubAck(List<String> filters, int[] reasonCodes) {
+        if (reasonCodes == null || reasonCodes.length != filters.size()) {
+            throw new IllegalStateException(
+                    "MQTT SUBACK did not contain one reason code per canonical filter");
+        }
+
+        for (int index = 0; index < reasonCodes.length; index++) {
+            int reasonCode = reasonCodes[index];
+            // MQTT v5 SUBACK success values are Granted QoS 0, 1 and 2. All failure
+            // reason codes are >= 0x80.
+            if (reasonCode < 0 || reasonCode > 2) {
+                throw new IllegalStateException(String.format(
+                        "MQTT subscription rejected for %s (SUBACK reason code 0x%02X)",
+                        filters.get(index),
+                        reasonCode & 0xff));
+            }
         }
     }
 
     @Override
     public void messageArrived(String topic, MqttMessage message) {
-        try {
-            ProjectionEvent event = decoder.decode(topic, message.getPayload());
-            projection.accept(event);
-        } catch (Exception exception) {
-            projection.recordInvalidMessage();
-            log.warn("Rejected retained message on topic {}: {}", topic, exception.getMessage());
+        synchronized (messageLock) {
+            if (!acceptingMessages.get()) {
+                log.debug("Ignoring MQTT message outside an active subscription cycle on topic {}", topic);
+                return;
+            }
+            try {
+                ProjectionEvent event = decoder.decode(topic, message.getPayload());
+                projection.accept(event);
+            } catch (Exception exception) {
+                recordRejectedMessage(topic);
+                log.warn("Rejected retained message on topic {}: {}", topic, exception.getMessage());
+            }
         }
+    }
+
+    private void recordRejectedMessage(String topic) {
+        try {
+            ParsedTopic parsed = topicParser.parse(topic);
+            if (parsed.type() == EntityType.IMAGE) {
+                projection.recordInvalidImage(parsed.id());
+                return;
+            }
+        } catch (RuntimeException ignored) {
+            // The topic itself is malformed; it has no canonical Image identity to retain.
+        }
+        projection.recordInvalidMessage();
     }
 
     @Override
@@ -137,7 +203,10 @@ public final class MqttProjectionClient implements AutoCloseable, MqttCallback {
         String reason = disconnectResponse == null
                 ? "MQTT disconnected"
                 : "MQTT disconnected (reason code " + disconnectResponse.getReturnCode() + ")";
-        projection.disconnected(reason);
+        synchronized (messageLock) {
+            acceptingMessages.set(false);
+            projection.disconnected(reason);
+        }
         log.warn("{}", reason);
     }
 
@@ -161,6 +230,7 @@ public final class MqttProjectionClient implements AutoCloseable, MqttCallback {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
+        acceptingMessages.set(false);
         lifecycle.shutdownNow();
         try {
             if (client.isConnected()) {

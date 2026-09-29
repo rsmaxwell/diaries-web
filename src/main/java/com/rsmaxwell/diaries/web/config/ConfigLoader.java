@@ -13,7 +13,9 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public final class ConfigLoader {
     public static final String MQTT_USERNAME = "DIARIES_WEB_MQTT_USERNAME";
@@ -45,7 +47,12 @@ public final class ConfigLoader {
         if (!Files.isRegularFile(path)) {
             throw new IllegalArgumentException("configuration file does not exist: " + path);
         }
-        AppConfig config = objectMapper.readValue(path.toFile(), AppConfig.class);
+        JsonNode root = objectMapper.readTree(path.toFile());
+        JsonNode content = root.get("content");
+        if (content instanceof ObjectNode contentObject && !contentObject.has("filesPath")) {
+            contentObject.put("filesPath", AppConfig.ContentConfig.DEFAULT_FILES_PATH);
+        }
+        AppConfig config = objectMapper.treeToValue(root, AppConfig.class);
         MqttCredentials credentials = new MqttCredentials(
                 environment.get(MQTT_USERNAME),
                 environment.get(MQTT_PASSWORD));

@@ -1,0 +1,355 @@
+{
+  "contractVersion": 1,
+  "feature": "0026-FEAT - render ImageFragments in diaries-web",
+  "step": 2,
+  "fragmentReferenceCases": [
+    {
+      "id": "image-reference-positive",
+      "fragmentType": "IMAGE",
+      "imageId": 60,
+      "expected": "AVAILABLE_IF_METADATA_VALID"
+    },
+    {
+      "id": "image-reference-explicit-null",
+      "fragmentType": "IMAGE",
+      "imageId": null,
+      "imageIdPresence": "explicit",
+      "expected": "NO_SELECTION"
+    },
+    {
+      "id": "image-reference-absent",
+      "fragmentType": "IMAGE",
+      "imageIdPresence": "absent",
+      "expected": "NO_SELECTION"
+    },
+    {
+      "id": "marquee-reference-null",
+      "fragmentType": "MARQUEE",
+      "imageId": null,
+      "expected": "NOT_APPLICABLE"
+    },
+    {
+      "id": "marquee-reference-cross-type",
+      "fragmentType": "MARQUEE",
+      "imageId": 60,
+      "expected": "PRESERVE_CHRONOLOGY_DIAGNOSE_IGNORE_IMAGE"
+    },
+    {
+      "id": "image-reference-zero",
+      "fragmentType": "IMAGE",
+      "imageId": 0,
+      "expected": "REJECT_PAYLOAD"
+    }
+  ],
+  "fragmentTypeCases": [
+    {
+      "id": "type-absent",
+      "typePresence": "absent",
+      "expectedKind": "LEGACY_MARQUEE",
+      "rawType": null
+    },
+    {
+      "id": "type-explicit-null",
+      "type": null,
+      "typePresence": "explicit",
+      "expectedKind": "LEGACY_MARQUEE",
+      "rawType": null
+    },
+    {
+      "id": "type-marquee",
+      "type": "MARQUEE",
+      "expectedKind": "MARQUEE",
+      "rawType": null
+    },
+    {
+      "id": "type-image",
+      "type": "IMAGE",
+      "expectedKind": "IMAGE",
+      "rawType": null
+    },
+    {
+      "id": "type-future-string",
+      "type": "VIDEO",
+      "expectedKind": "UNKNOWN",
+      "rawType": "VIDEO"
+    },
+    {
+      "id": "type-non-string",
+      "type": 42,
+      "expectedKind": "REJECT_PAYLOAD"
+    }
+  ],
+  "imageMetadataCases": [
+    {
+      "id": "metadata-valid-full",
+      "mutation": "none",
+      "expected": "VALID"
+    },
+    {
+      "id": "metadata-caption-empty",
+      "mutation": {
+        "caption": ""
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "metadata-alt-empty",
+      "mutation": {
+        "altText": ""
+      },
+      "expected": "VALID"
+    },
+    {
+      "id": "metadata-caption-absent",
+      "remove": [
+        "caption"
+      ],
+      "expected": "VALID_DEFAULT_EMPTY"
+    },
+    {
+      "id": "metadata-alt-absent",
+      "remove": [
+        "altText"
+      ],
+      "expected": "VALID_DEFAULT_EMPTY"
+    },
+    {
+      "id": "metadata-caption-null",
+      "mutation": {
+        "caption": null
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-alt-null",
+      "mutation": {
+        "altText": null
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-future-field",
+      "mutation": {
+        "futureField": {
+          "v": 1
+        }
+      },
+      "expected": "VALID_IGNORE_ADDITIVE"
+    },
+    {
+      "id": "metadata-id-zero",
+      "mutation": {
+        "id": 0
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-version-negative",
+      "mutation": {
+        "version": -1
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-path-blank",
+      "mutation": {
+        "relativePath": " "
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-leading-slash",
+      "mutation": {
+        "relativePath": "/1829/img.jpg"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-trailing-slash",
+      "mutation": {
+        "relativePath": "1829/img.jpg/"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-empty-segment",
+      "mutation": {
+        "relativePath": "1829//img.jpg"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-dot",
+      "mutation": {
+        "relativePath": "1829/./img.jpg"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-dotdot",
+      "mutation": {
+        "relativePath": "1829/../img.jpg"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-backslash",
+      "mutation": {
+        "relativePath": "1829\\img.jpg"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-colon",
+      "mutation": {
+        "relativePath": "https:example/img.jpg"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-path-non-nfc",
+      "mutation": {
+        "relativePath": "1829/é.jpg"
+      },
+      "expected": "REJECT_INVALID_PATH"
+    },
+    {
+      "id": "metadata-mime-unsupported",
+      "mutation": {
+        "mimeType": "image/svg+xml"
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-width-zero",
+      "mutation": {
+        "width": 0
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-height-zero",
+      "mutation": {
+        "height": 0
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-checksum-uppercase",
+      "mutation": {
+        "checksum": "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789"
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-checksum-short",
+      "mutation": {
+        "checksum": "abc123"
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-filename-blank",
+      "mutation": {
+        "originalFilename": " "
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-filename-directory",
+      "mutation": {
+        "originalFilename": "sub/img.jpg"
+      },
+      "expected": "REJECT"
+    },
+    {
+      "id": "metadata-topic-id-mismatch",
+      "topicId": 61,
+      "payloadId": 60,
+      "expected": "REJECT_KEEP_LAST_VALID"
+    },
+    {
+      "id": "metadata-zero-byte-tombstone",
+      "payload": "ZERO_BYTES",
+      "expected": "TOMBSTONE"
+    },
+    {
+      "id": "metadata-json-null",
+      "payload": "null",
+      "expected": "REJECT_NOT_TOMBSTONE"
+    }
+  ],
+  "mediaResolutionCases": [
+    {
+      "id": "media-marquee",
+      "fragmentType": "MARQUEE",
+      "expected": "NOT_APPLICABLE"
+    },
+    {
+      "id": "media-image-no-selection",
+      "fragmentType": "IMAGE",
+      "imageId": null,
+      "expected": "NO_SELECTION"
+    },
+    {
+      "id": "media-image-valid",
+      "fragmentType": "IMAGE",
+      "imageId": 60,
+      "metadata": "valid",
+      "expected": "AVAILABLE"
+    },
+    {
+      "id": "media-image-missing",
+      "fragmentType": "IMAGE",
+      "imageId": 60,
+      "metadata": "absent",
+      "expected": "MISSING_METADATA"
+    },
+    {
+      "id": "media-image-invalid",
+      "fragmentType": "IMAGE",
+      "imageId": 60,
+      "metadata": "rejected-current-generation",
+      "expected": "INVALID_METADATA"
+    },
+    {
+      "id": "media-image-file-failure",
+      "fragmentType": "IMAGE",
+      "imageId": 60,
+      "metadata": "valid",
+      "browserLoad": "failed",
+      "expected": "AVAILABLE_PLUS_FILE_LOAD_FAILED_PRESENTATION"
+    },
+    {
+      "id": "media-unknown-type",
+      "fragmentType": "VIDEO",
+      "expected": "UNSUPPORTED_TYPE"
+    }
+  ],
+  "replacementCases": [
+    {
+      "id": "replacement-malformed-live",
+      "starting": "VALID_ENTITY",
+      "update": "MALFORMED_NONEMPTY",
+      "expected": "KEEP_LAST_VALID_AND_INCREMENT_INVALID"
+    },
+    {
+      "id": "replacement-valid-live",
+      "starting": "VALID_ENTITY",
+      "update": "VALID_UPSERT",
+      "expected": "REPLACE_ENTITY"
+    },
+    {
+      "id": "replacement-tombstone-live",
+      "starting": "VALID_ENTITY",
+      "update": "ZERO_BYTE_TOMBSTONE",
+      "expected": "REMOVE_ENTITY"
+    },
+    {
+      "id": "replacement-malformed-fresh-replay",
+      "starting": "EMPTY_STAGING_WITH_OLD_READY_GENERATION",
+      "update": "MALFORMED_RETAINED",
+      "expected": "DO_NOT_COPY_OLD_ENTITY_INTO_STAGING"
+    }
+  ]
+}

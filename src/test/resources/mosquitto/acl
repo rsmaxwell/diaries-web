@@ -2,6 +2,16 @@ user publisher
 topic readwrite diaries/#
 
 user reader
+topic deny diaries/rpc/#
+topic read diaries/diaries/+
+topic read diaries/pages/+
+topic read diaries/fragments/+
+topic read diaries/marquees/+
+topic read diaries/images/+
+
+# Negative-control identity without Image read permission. Mosquitto can grant
+# SUBACK while silently withholding unauthorized data.
+user reader-no-image
 topic read diaries/diaries/+
 topic read diaries/pages/+
 topic read diaries/fragments/+

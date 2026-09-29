@@ -428,6 +428,7 @@ public final class WebServer implements AutoCloseable {
         payload.put("pages", snapshot.pagesById().size());
         payload.put("fragments", snapshot.fragmentsById().size());
         payload.put("marquees", snapshot.marqueesById().size());
+        payload.put("images", snapshot.imageCount());
         payload.put("invalidMessages", status.invalidMessageCount());
         payload.put("tombstones", status.tombstoneCount());
         payload.put("relationships", snapshot.relationshipDiagnostics());

@@ -15,6 +15,7 @@ import com.rsmaxwell.diaries.web.buildinfo.BuildInfo;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
 import com.rsmaxwell.diaries.web.model.FragmentType;
+import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.RectangleItem;
 import com.rsmaxwell.diaries.web.projection.ProjectionEvent;
 import com.rsmaxwell.diaries.web.projection.ProjectionService;
@@ -35,11 +36,26 @@ class WebServerTest {
             assertThat(live.statusCode()).isEqualTo(200);
             assertThat(live.body()).contains("\"status\":\"UP\"");
             assertThat(ready.statusCode()).isEqualTo(503);
-            assertThat(ready.body()).contains("\"relationships\"", "\"fragmentsWithoutPageId\"");
+            assertThat(ready.body()).contains("\"relationships\"", "\"fragmentsWithoutPageId\"", "\"images\":0");
             assertThat(content.statusCode()).isEqualTo(503);
             assertThat(content.headers().firstValue("Retry-After")).contains("3");
             assertThat(content.body()).contains("projection is synchronising");
             assertThat(content.body()).doesNotContain("broker", "password", "mqtt.host");
+        }
+    }
+
+    @Test
+    void readinessReportsProjectedImageCount() throws Exception {
+        try (ProjectionService projection = TestData.readyProjection(); WebServer server = server(projection)) {
+            projection.accept(new ProjectionEvent.UpsertImage(new ImageItem(
+                    60, 0, "maps/image.png", "image/png", "image.png",
+                    1600, 900, "ab".repeat(32), "caption", "alt"))).join();
+            server.start();
+
+            HttpResponse<String> ready = get(server, "/reader/health/ready");
+
+            assertThat(ready.statusCode()).isEqualTo(200);
+            assertThat(ready.body()).contains("\"status\":\"UP\"", "\"images\":1");
         }
     }
 
@@ -103,7 +119,10 @@ class WebServerTest {
                     "selectFromMarquee", "scrollIntoView", "event.key !== 'Enter' && event.key !== ' '");
             assertThat(javascript.body()).doesNotContain("view.x = clamp", "view.y = clamp");
             assertThat(index.headers().firstValue("Content-Security-Policy"))
-                    .hasValueSatisfying(value -> assertThat(value).contains("default-src 'none'", "form-action 'self'"));
+                    .hasValueSatisfying(value -> assertThat(value)
+                            .contains("default-src 'none'", "form-action 'self'",
+                                    "img-src https://content.example.test data:")
+                            .doesNotContain("http://diaries-responder:8080", "unsafe-inline", "unsafe-eval"));
         }
     }
 

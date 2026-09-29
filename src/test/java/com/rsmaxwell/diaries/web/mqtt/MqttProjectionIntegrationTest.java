@@ -148,6 +148,8 @@ class MqttProjectionIntegrationTest {
                         WebServer web=new WebServer(TestData.config(""),projection,new BuildInfo("diaries-web","phase9","test","test","test","test","test"))) {
                     web.start();reader.start();
                     await().atMost(Duration.ofSeconds(10)).until(()->projection.status().ready());
+                    assertThat(projection.snapshot().imageCount()).isEqualTo(count);
+                    for(int id=1;id<=count;id++)assertThat(projection.snapshot().imageById(id)).isPresent();
                     java.util.Map<String,String> rendered=new java.util.LinkedHashMap<>();
                     for(String route:java.util.List.of("/","/diaries/11","/diaries/11/2026/09?fragment=33","/diaries/11/pages/22"))rendered.put(route,get(web,route));
                     assertThat(rendered.get("/diaries/11/2026/09?fragment=33")).contains("A diary entry","data-viewer-marquee","data-reader-fragment=\"33\"");
@@ -155,10 +157,16 @@ class MqttProjectionIntegrationTest {
                     if(baseline==null)baseline=rendered;else assertThat(rendered).isEqualTo(baseline);
                     long invalid=projection.status().invalidMessageCount();
                     retain(publisher,"diaries/images/99",catalogueImage(99));
+                    await().atMost(Duration.ofSeconds(3)).untilAsserted(()->{
+                        assertThat(projection.snapshot().imageCount()).isEqualTo(count+1);
+                        assertThat(projection.snapshot().imageById(99)).isPresent();
+                    });
                     publisher.publish("diaries/images/99",new byte[0],1,true).waitForCompletion(5000);
                     await().during(Duration.ofMillis(400)).atMost(Duration.ofSeconds(3)).untilAsserted(()->{
                         assertThat(projection.status().ready()).isTrue();
                         assertThat(projection.status().invalidMessageCount()).isEqualTo(invalid);
+                        assertThat(projection.snapshot().imageCount()).isEqualTo(count);
+                        assertThat(projection.snapshot().imageById(99)).isEmpty();
                         for(var page:rendered.entrySet())assertThat(get(web,page.getKey())).isEqualTo(page.getValue());
                     });
                 }

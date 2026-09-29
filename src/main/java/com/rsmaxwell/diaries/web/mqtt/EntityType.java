@@ -4,7 +4,8 @@ public enum EntityType {
     DIARY("diaries"),
     PAGE("pages"),
     FRAGMENT("fragments"),
-    MARQUEE("marquees");
+    MARQUEE("marquees"),
+    IMAGE("images");
 
     private final String topicSegment;
 

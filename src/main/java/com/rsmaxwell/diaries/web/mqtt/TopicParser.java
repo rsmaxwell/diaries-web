@@ -13,10 +13,22 @@ public final class TopicParser {
         this.prefix = prefix;
     }
 
+    /** Filters used by the read-only web projection subscriber. */
     public List<String> canonicalFilters() {
-        return Arrays.stream(EntityType.values())
-                .map(type -> prefix + "/" + type.topicSegment() + "/+")
-                .toList();
+        return List.of(
+                canonicalFilter(EntityType.DIARY),
+                canonicalFilter(EntityType.PAGE),
+                canonicalFilter(EntityType.FRAGMENT),
+                canonicalFilter(EntityType.MARQUEE),
+                canonicalFilter(EntityType.IMAGE));
+    }
+
+    /** Builds the canonical single-level retained lookup filter for any entity. */
+    public String canonicalFilter(EntityType type) {
+        if (type == null) {
+            throw new IllegalArgumentException("entity type must not be null");
+        }
+        return prefix + "/" + type.topicSegment() + "/+";
     }
 
     public ParsedTopic parse(String topic) {

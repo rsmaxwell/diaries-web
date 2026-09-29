@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 import com.rsmaxwell.diaries.web.projection.ProjectionEvent;
@@ -35,6 +36,13 @@ public final class RetainedMessageDecoder {
             case PAGE -> new ProjectionEvent.UpsertPage(objectMapper.readValue(payload, PageItem.class));
             case FRAGMENT -> new ProjectionEvent.UpsertFragment(objectMapper.readValue(payload, FragmentItem.class));
             case MARQUEE -> new ProjectionEvent.UpsertMarquee(objectMapper.readValue(payload, MarqueeItem.class));
+            case IMAGE -> {
+                ImageItem image = objectMapper.readValue(payload, ImageItem.class);
+                if (image == null) {
+                    throw new IllegalArgumentException("image payload must be a JSON object");
+                }
+                yield new ProjectionEvent.UpsertImage(image);
+            }
         };
 
         long payloadId = switch (event) {
@@ -42,6 +50,7 @@ public final class RetainedMessageDecoder {
             case ProjectionEvent.UpsertPage value -> value.value().id();
             case ProjectionEvent.UpsertFragment value -> value.value().id();
             case ProjectionEvent.UpsertMarquee value -> value.value().id();
+            case ProjectionEvent.UpsertImage value -> value.value().id();
             case ProjectionEvent.Tombstone value -> value.id();
         };
         if (payloadId != parsed.id()) {

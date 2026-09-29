@@ -6,7 +6,7 @@ client to authenticate, lock, create and maintain fragments. The
 `diaries-responder` remains authoritative for validation, persistence, MQTT
 RPC, locking and publication of the canonical retained model.
 
-The service subscribes to four retained MQTT lookup families, builds an
+The service subscribes to five retained MQTT lookup families, builds an
 in-memory model, and renders ordinary HTML for browser GET requests:
 
 ```text
@@ -65,7 +65,15 @@ diaries/diaries/+
 diaries/pages/+
 diaries/fragments/+
 diaries/marquees/+
+diaries/images/+
 ```
+
+Canonical Image metadata decoding/subscription is present as of 0026 Step 4;
+Image snapshot storage and rendering remain later steps of that feature.
+Every SUBACK result must succeed before replay can become ready. Mosquitto's
+file ACL can acknowledge a filter while withholding unauthorized messages, so
+deployment must also verify retained Image delivery using the actual
+`diaries-web` identity; readiness alone cannot prove the broker ACL is correct.
 
 Empty retained payloads are tombstones. Topic and payload IDs must agree;
 invalid payloads are rejected without replacing the last valid snapshot.
@@ -114,11 +122,24 @@ generation-based ETags support conditional GETs.
 
 As a temporary migration compatibility measure, sanitized fragment HTML
 resolves the old importer form `images/<filename>` to
-`{content.publicResponderBaseUrl}/files/{diary}/images/{filename}`. The resolver
-accepts only a single filename with a supported image extension and removes
-invalid legacy-looking links rather than allowing route-relative resolution.
-Absolute URLs and other non-legacy values retain the sanitizer's normal policy.
-New data should use explicit IMAGE-fragment metadata instead.
+`{content.publicResponderBaseUrl}/{content.filesPath}/{diary}/images/{filename}`.
+`content.filesPath` defaults to `files`, so configurations which omit the new
+property preserve the previous `/files/...` output. The resolver accepts only a
+single filename with a supported image extension and removes invalid
+legacy-looking links rather than allowing route-relative resolution. Absolute
+URLs and other non-legacy values retain the sanitizer's normal policy. New data
+should use explicit IMAGE-fragment metadata instead.
+
+Catalogue Image URLs are derived only from runtime browser routing plus retained
+`Image.relativePath`:
+
+```text
+{content.publicResponderBaseUrl}/{content.filesPath}/{encoded-relative-path-segments}
+```
+
+The stored relative path is validated before encoding. Real `/` separators are
+preserved, while every segment is encoded exactly once; persisted percent
+sequences are treated literally rather than decoded into path syntax.
 
 `/health/live` reports process/HTTP health. `/health/ready` is 200 only after a
 complete projection generation is available; otherwise it returns 503. Health
@@ -138,8 +159,21 @@ DIARIES_WEB_MQTT_PASSWORD
 
 The committed Docker example uses the local Compose service names. Adjust
 `http.publicBaseUrl` and `content.publicResponderBaseUrl` for the externally
-visible HTTPS/proxy routes. The latter must reach the existing responder image
-route; browsers do not need access to the internal `content.responderBaseUrl`.
+visible HTTPS/proxy routes. `content.publicResponderBaseUrl` is browser-visible
+routing only: it must be either an HTTP(S) URL or a same-origin rooted path and
+must not be replaced with an internal Docker DNS name merely because
+`content.responderBaseUrl` uses one.
+
+`content.filesPath` names the responder Files route as literal path segments and
+defaults to `files` when the property is absent. Nested routes are supported
+(for example `archive/files`); do not pre-percent-encode the setting. Catalogue
+Image paths and this route are encoded by `diaries-web` at URL construction.
+
+Because configuration decoding is strict, deploy a binary which understands
+`content.filesPath` before adding that property to an existing generated or
+production JSON file. Omitting it remains compatible and produces the old
+`/files/...` route. Browsers do not need access to the internal
+`content.responderBaseUrl`.
 
 For development infrastructure, run Mosquitto/responder as usual and start:
 

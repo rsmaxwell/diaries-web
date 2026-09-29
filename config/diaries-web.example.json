@@ -22,7 +22,8 @@
   "content": {
     "responderBaseUrl": "http://localhost:8081",
     "publicResponderBaseUrl": "/diaries-responder",
-    "diariesPath": "diaries"
+    "diariesPath": "diaries",
+    "filesPath": "files"
   },
   "site": {
     "title": "Diaries",

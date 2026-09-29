@@ -1,6 +1,7 @@
 package com.rsmaxwell.diaries.web.config;
 
 import java.net.URI;
+import java.text.Normalizer;
 import java.time.ZoneId;
 import java.util.Locale;
 
@@ -73,13 +74,17 @@ public record AppConfig(
     public record ContentConfig(
             String responderBaseUrl,
             String publicResponderBaseUrl,
-            String diariesPath) {
+            String diariesPath,
+            String filesPath) {
+        public static final String DEFAULT_FILES_PATH = "files";
+
         public ContentConfig {
             responderBaseUrl = trimTrailingSlash(required(responderBaseUrl, "content.responderBaseUrl"));
-            publicResponderBaseUrl = trimTrailingSlash(required(
-                    publicResponderBaseUrl,
-                    "content.publicResponderBaseUrl"));
+            publicResponderBaseUrl = normalizePublicResponderBaseUrl(publicResponderBaseUrl);
             diariesPath = trimSlashes(required(diariesPath, "content.diariesPath"));
+            filesPath = normalizeRoutePath(
+                    filesPath == null ? DEFAULT_FILES_PATH : filesPath,
+                    "content.filesPath");
             URI.create(responderBaseUrl);
         }
     }
@@ -118,6 +123,91 @@ public record AppConfig(
             throw new IllegalArgumentException("http.basePath is invalid");
         }
         return normalized;
+    }
+
+    private static String normalizePublicResponderBaseUrl(String value) {
+        String normalized = trimTrailingSlash(required(value, "content.publicResponderBaseUrl"));
+        URI uri;
+        try {
+            uri = URI.create(normalized);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("content.publicResponderBaseUrl is invalid", exception);
+        }
+
+        if (normalized.startsWith("//")) {
+            throw new IllegalArgumentException("content.publicResponderBaseUrl must not be protocol-relative");
+        }
+        if (normalized.startsWith("/")) {
+            if (uri.isAbsolute() || uri.getRawAuthority() != null
+                    || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+                throw new IllegalArgumentException("content.publicResponderBaseUrl is invalid");
+            }
+            validateBrowserBasePath(uri, "content.publicResponderBaseUrl");
+            return normalized;
+        }
+
+        String scheme = uri.getScheme();
+        if (scheme == null
+                || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))
+                || uri.isOpaque()
+                || uri.getHost() == null
+                || uri.getUserInfo() != null
+                || uri.getRawQuery() != null
+                || uri.getRawFragment() != null) {
+            throw new IllegalArgumentException(
+                    "content.publicResponderBaseUrl must be an HTTP(S) URL or same-origin rooted path");
+        }
+        validateBrowserBasePath(uri, "content.publicResponderBaseUrl");
+        return normalized;
+    }
+
+    private static void validateBrowserBasePath(URI uri, String name) {
+        String rawPath = uri.getRawPath();
+        if (rawPath == null || rawPath.isEmpty() || "/".equals(rawPath)) {
+            return;
+        }
+        String lowerRawPath = rawPath.toLowerCase(Locale.ROOT);
+        if (lowerRawPath.contains("%2f") || lowerRawPath.contains("%5c")) {
+            throw new IllegalArgumentException(name + " contains an encoded path separator");
+        }
+        String decodedPath = uri.getPath();
+        if (decodedPath == null
+                || decodedPath.indexOf('\\') >= 0
+                || decodedPath.codePoints().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException(name + " contains unsafe path syntax");
+        }
+        String[] segments = decodedPath.split("/", -1);
+        for (int index = 1; index < segments.length; index++) {
+            String segment = segments[index];
+            if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
+                throw new IllegalArgumentException(name + " contains an unsafe path segment");
+            }
+        }
+    }
+
+    private static String normalizeRoutePath(String value, String name) {
+        String result = required(value, name);
+        while (result.startsWith("/")) {
+            result = result.substring(1);
+        }
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        if (result.isBlank()
+                || result.indexOf('\\') >= 0
+                || result.indexOf('?') >= 0
+                || result.indexOf('#') >= 0
+                || result.indexOf(':') >= 0
+                || result.codePoints().anyMatch(Character::isISOControl)
+                || !Normalizer.isNormalized(result, Normalizer.Form.NFC)) {
+            throw new IllegalArgumentException(name + " is invalid");
+        }
+        for (String segment : result.split("/", -1)) {
+            if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
+                throw new IllegalArgumentException(name + " contains an invalid path segment");
+            }
+        }
+        return result;
     }
 
     private static String required(String value, String name) {

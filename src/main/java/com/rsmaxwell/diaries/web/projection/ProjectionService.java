@@ -157,6 +157,27 @@ public final class ProjectionService implements AutoCloseable {
         });
     }
 
+    public CompletableFuture<Void> recordInvalidImage(long imageId) {
+        if (imageId <= 0) {
+            throw new IllegalArgumentException("imageId must be positive");
+        }
+        return submit(() -> {
+            ProjectionStatus previous = status.get();
+            boolean changed = staging != null
+                    ? staging.markInvalidImage(imageId)
+                    : active.markInvalidImage(imageId);
+            status.set(copyStatus(
+                    previous,
+                    previous.lastAcceptedUpdateAt(),
+                    previous.invalidMessageCount() + 1,
+                    previous.tombstoneCount()));
+            if (staging == null && changed) {
+                generation++;
+                snapshot.set(ProjectionSnapshot.build(generation, active, SourceConnectionState.READY));
+            }
+        });
+    }
+
     public CompletableFuture<Void> disconnected(String reason) {
         return submit(() -> {
             staging = null;
@@ -246,13 +267,15 @@ public final class ProjectionService implements AutoCloseable {
                 previous.invalidMessageCount(),
                 previous.tombstoneCount()));
         log.info(
-                "Published replay generation {} as snapshot {} (diaries={}, pages={}, fragments={}, marquees={})",
+                "Published replay generation {} as snapshot {} "
+                        + "(diaries={}, pages={}, fragments={}, marquees={}, images={})",
                 epoch,
                 generation,
                 next.diariesById().size(),
                 next.pagesById().size(),
                 next.fragmentsById().size(),
-                next.marqueesById().size());
+                next.marqueesById().size(),
+                next.imageCount());
     }
 
     private void replayTimedOut(long epoch) {

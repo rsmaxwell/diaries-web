@@ -15,6 +15,7 @@ import java.util.TreeSet;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
 import com.rsmaxwell.diaries.web.model.FragmentType;
+import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 
@@ -38,6 +39,7 @@ public final class ProjectionSnapshot {
     private final Map<Long, PageItem> pagesById;
     private final Map<Long, FragmentItem> fragmentsById;
     private final Map<Long, MarqueeItem> marqueesById;
+    private final Map<Long, ImageItem> imagesById;
     private final Map<Long, List<PageItem>> pagesByDiaryId;
     private final Map<Long, List<MarqueeItem>> marqueesByPageId;
     private final Map<Long, FragmentItem> fragmentByMarqueeId;
@@ -56,6 +58,7 @@ public final class ProjectionSnapshot {
             Map<Long, PageItem> pagesById,
             Map<Long, FragmentItem> fragmentsById,
             Map<Long, MarqueeItem> marqueesById,
+            Map<Long, ImageItem> imagesById,
             Map<Long, List<PageItem>> pagesByDiaryId,
             Map<Long, List<MarqueeItem>> marqueesByPageId,
             Map<Long, FragmentItem> fragmentByMarqueeId,
@@ -72,6 +75,7 @@ public final class ProjectionSnapshot {
         this.pagesById = Map.copyOf(pagesById);
         this.fragmentsById = Map.copyOf(fragmentsById);
         this.marqueesById = Map.copyOf(marqueesById);
+        this.imagesById = Map.copyOf(imagesById);
         this.pagesByDiaryId = copyLists(pagesByDiaryId);
         this.marqueesByPageId = copyLists(marqueesByPageId);
         this.fragmentByMarqueeId = Map.copyOf(fragmentByMarqueeId);
@@ -131,10 +135,15 @@ public final class ProjectionSnapshot {
         int fragmentsWithoutPageId = 0;
         int fragmentsWithMissingPage = 0;
         int fragmentPagesWithoutDiary = 0;
+        int fragmentsWithUnknownType = 0;
         int marqueeFragmentsWithoutMarquee = 0;
+        int marqueeFragmentsWithImage = 0;
+        int imageFragmentsWithMarquee = 0;
+        int imageFragmentsWithoutImage = 0;
+        int imagesReferencedButMissing = 0;
+        int imagesReferencedButInvalid = 0;
         int inconsistentLinks = 0;
         int inconsistentPages = 0;
-        int unsupportedImageFragments = 0;
         int legacyTypeFallbacks = 0;
 
         for (FragmentItem fragment : state.fragments.values()) {
@@ -156,37 +165,75 @@ public final class ProjectionSnapshot {
                 continue;
             }
 
+            List<MarqueeItem> linkedMarquees = marqueesByFragment.getOrDefault(fragment.id(), List.of());
             MarqueeItem marquee = null;
-            if (fragment.effectiveType() == FragmentType.MARQUEE) {
-                List<MarqueeItem> linkedMarquees = marqueesByFragment.getOrDefault(fragment.id(), List.of());
-                if (linkedMarquees.isEmpty()) {
-                    marqueeFragmentsWithoutMarquee++;
-                } else {
-                    MarqueeItem candidate = linkedMarquees.stream()
+            ImageItem image = null;
+            ResolvedFragment.MediaState mediaState;
+
+            switch (fragment.effectiveType()) {
+                case MARQUEE -> {
+                    mediaState = ResolvedFragment.MediaState.NOT_APPLICABLE;
+                    if (fragment.imageId() != null) {
+                        marqueeFragmentsWithImage++;
+                    }
+                    MarqueeItem matchingMarquee = linkedMarquees.stream()
                             .filter(value -> value.pageId() == fragment.pageId())
                             .findFirst()
-                            .orElse(linkedMarquees.get(0));
-                    if (candidate.pageId() != fragment.pageId()) {
-                        inconsistentPages++;
+                            .orElse(null);
+                    if (matchingMarquee == null) {
+                        marqueeFragmentsWithoutMarquee++;
                     } else {
-                        marquee = candidate;
-                        fragmentByMarquee.put(candidate.id(), fragment);
+                        marquee = matchingMarquee;
+                        fragmentByMarquee.put(matchingMarquee.id(), fragment);
                     }
+                    if (linkedMarquees.stream().anyMatch(value -> value.pageId() != fragment.pageId())) {
+                        inconsistentPages++;
+                    }
+                    inconsistentLinks += compatibilityPointerAnomaly(fragment, state.marquees) ? 1 : 0;
                 }
+                case IMAGE -> {
+                    // An IMAGE never exposes a selected Marquee, even if retained data links one.
+                    if (!linkedMarquees.isEmpty()) {
+                        imageFragmentsWithMarquee++;
+                        if (linkedMarquees.stream().anyMatch(value -> value.pageId() != fragment.pageId())) {
+                            inconsistentPages++;
+                        }
+                    }
+                    inconsistentLinks += compatibilityPointerAnomaly(fragment, state.marquees) ? 1 : 0;
 
-                // marqueeId remains compatibility metadata. Diagnose a conflicting
-                // pointer, but never use it to establish Fragment ownership.
-                if (fragment.marqueeId() != null) {
-                    MarqueeItem compatibilityMarquee = state.marquees.get(fragment.marqueeId());
-                    if (compatibilityMarquee != null && compatibilityMarquee.fragmentId() != fragment.id()) {
-                        inconsistentLinks++;
+                    if (fragment.imageId() == null) {
+                        imageFragmentsWithoutImage++;
+                        mediaState = ResolvedFragment.MediaState.NO_SELECTION;
+                    } else {
+                        image = state.images.get(fragment.imageId());
+                        if (image == null) {
+                            if (state.invalidImageIds.contains(fragment.imageId())) {
+                                imagesReferencedButInvalid++;
+                                mediaState = ResolvedFragment.MediaState.INVALID_METADATA;
+                            } else {
+                                imagesReferencedButMissing++;
+                                mediaState = ResolvedFragment.MediaState.MISSING_METADATA;
+                            }
+                        } else {
+                            mediaState = ResolvedFragment.MediaState.AVAILABLE;
+                        }
                     }
                 }
-            } else {
-                unsupportedImageFragments++;
+                case UNKNOWN -> {
+                    fragmentsWithUnknownType++;
+                    mediaState = ResolvedFragment.MediaState.UNSUPPORTED_TYPE;
+                    // Unknown explicit types retain Page/text chronology only. Do not infer media.
+                }
+                default -> throw new IllegalStateException("Unhandled Fragment type " + fragment.effectiveType());
             }
 
-            ResolvedFragment resolved = new ResolvedFragment(fragment, Optional.ofNullable(marquee), page, diary);
+            ResolvedFragment resolved = new ResolvedFragment(
+                    fragment,
+                    Optional.ofNullable(marquee),
+                    Optional.ofNullable(image),
+                    mediaState,
+                    page,
+                    diary);
             resolvedFragments.put(fragment.id(), resolved);
             DiaryDayKey key = new DiaryDayKey(diary.id(), fragment.date());
             fragmentsByDay.computeIfAbsent(key, ignored -> new ArrayList<>()).add(fragment);
@@ -213,10 +260,17 @@ public final class ProjectionSnapshot {
                 fragmentsWithoutPageId,
                 fragmentsWithMissingPage,
                 fragmentPagesWithoutDiary,
+                fragmentsWithoutPageId + fragmentsWithMissingPage,
+                fragmentsWithUnknownType,
                 marqueeFragmentsWithoutMarquee,
+                marqueeFragmentsWithImage,
+                imageFragmentsWithMarquee,
+                imageFragmentsWithoutImage,
+                imagesReferencedButMissing,
+                imagesReferencedButInvalid,
                 inconsistentLinks,
                 inconsistentPages,
-                unsupportedImageFragments,
+                0, // deprecated compatibility field: IMAGE is supported from Step 6 onward
                 legacyTypeFallbacks);
 
         return new ProjectionSnapshot(
@@ -226,6 +280,7 @@ public final class ProjectionSnapshot {
                 state.pages,
                 state.fragments,
                 state.marquees,
+                state.images,
                 pagesByDiary,
                 marqueesByPage,
                 fragmentByMarquee,
@@ -236,6 +291,16 @@ public final class ProjectionSnapshot {
                 resolvedFragments,
                 diagnostics,
                 connectionState);
+    }
+
+    private static boolean compatibilityPointerAnomaly(
+            FragmentItem fragment,
+            Map<Long, MarqueeItem> marqueesById) {
+        if (fragment.marqueeId() == null) {
+            return false;
+        }
+        MarqueeItem pointed = marqueesById.get(fragment.marqueeId());
+        return pointed == null || pointed.fragmentId() != fragment.id();
     }
 
     private static <K, V> Map<K, List<V>> copyLists(Map<K, List<V>> source) {
@@ -266,6 +331,14 @@ public final class ProjectionSnapshot {
 
     public Map<Long, MarqueeItem> marqueesById() {
         return marqueesById;
+    }
+
+    public int imageCount() {
+        return imagesById.size();
+    }
+
+    public Optional<ImageItem> imageById(long imageId) {
+        return Optional.ofNullable(imagesById.get(imageId));
     }
 
     public Map<Long, List<PageItem>> pagesByDiaryId() {
