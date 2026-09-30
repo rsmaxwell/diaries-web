@@ -7,6 +7,7 @@ import com.rsmaxwell.diaries.web.config.AppConfig;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
 import com.rsmaxwell.diaries.web.model.FragmentType;
+import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 import com.rsmaxwell.diaries.web.model.RectangleItem;
@@ -33,6 +34,119 @@ public final class TestData {
 
     public static MarqueeItem marquee() {
         return new MarqueeItem(44, 5, 22, 33, new RectangleItem(10.5, 20.5, 300, 200));
+    }
+
+
+    public static ImageItem catalogueImage() {
+        return new ImageItem(
+                60, 2,
+                "diary-2026/images/shared detail +#?.png",
+                "image/png",
+                "shared detail +#?.png",
+                1600,
+                900,
+                "ab".repeat(32),
+                "Shared <caption> & detail",
+                "Map <east> & west");
+    }
+
+    public static ImageItem catalogueImageWithEmptyAlt() {
+        return new ImageItem(
+                63, 0,
+                "diary-2026/images/decorative scan.jpg",
+                "image/jpeg",
+                "decorative scan.jpg",
+                800,
+                600,
+                "cd".repeat(32),
+                "",
+                "");
+    }
+
+    public static ImageItem tallCatalogueImage() {
+        return new ImageItem(
+                64, 0,
+                "diary-2026/images/tall portrait.png",
+                "image/png",
+                "tall portrait.png",
+                400,
+                1600,
+                "ef".repeat(32),
+                "Long caption <strong>not markup</strong> " + "detail ".repeat(40),
+                "Tall image");
+    }
+
+    public static ImageItem wideCatalogueImage() {
+        return new ImageItem(
+                65, 0,
+                "diary-2026/images/wide panorama.png",
+                "image/png",
+                "wide panorama.png",
+                2400,
+                300,
+                "12".repeat(32),
+                "",
+                "Wide image");
+    }
+
+    public static ImageItem smallCatalogueImage() {
+        return new ImageItem(
+                66, 0,
+                "diary-2026/images/small scan.png",
+                "image/png",
+                "small scan.png",
+                64,
+                48,
+                "34".repeat(32),
+                "Small image",
+                "Small image");
+    }
+
+    public static FragmentItem imageFragment(long id, int day, Long imageId, String text) {
+        return new FragmentItem(
+                id, 0, 2026, 9, day, new BigDecimal(id + ".0"), text,
+                22L, FragmentType.IMAGE, imageId, null);
+    }
+
+    public static FragmentItem unknownFragment(long id, int day, String rawType, String text) {
+        return new FragmentItem(
+                id, 0, 2026, 9, day, new BigDecimal(id + ".0"), text,
+                22L, FragmentType.UNKNOWN, rawType, null, null);
+    }
+
+    public static ProjectionService readyMixedMediaProjection() {
+        ProjectionService service = readyProjection();
+        service.accept(new ProjectionEvent.UpsertImage(catalogueImage())).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(35, 3, 60L, "<p>Shared image one</p>"))).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(36, 4, 60L, "<p>Shared image two</p>"))).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(37, 5, 61L, "<p>Missing image metadata</p>"))).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                unknownFragment(38, 6, "AUDIO", "<p>Unknown typed media</p>"))).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(39, 7, null, "<p>No image selected</p>"))).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(40, 8, 62L, "<p>Invalid image metadata</p>"))).join();
+        // Deliberately inconsistent retained data: IMAGE selection must never expose
+        // this Marquee to the HTTP view model.
+        service.accept(new ProjectionEvent.UpsertMarquee(
+                new MarqueeItem(46, 0, 22, 35, new RectangleItem(40, 50, 60, 70)))).join();
+        service.recordInvalidImage(62).join();
+        service.accept(new ProjectionEvent.UpsertImage(catalogueImageWithEmptyAlt())).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(41, 9, 63L, "<p>Decorative image with empty alt</p>"))).join();
+        service.accept(new ProjectionEvent.UpsertImage(tallCatalogueImage())).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(42, 10, 64L, ""))).join();
+        service.accept(new ProjectionEvent.UpsertImage(wideCatalogueImage())).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(43, 11, 65L, "<p>Wide image</p>"))).join();
+        service.accept(new ProjectionEvent.UpsertImage(smallCatalogueImage())).join();
+        service.accept(new ProjectionEvent.UpsertFragment(
+                imageFragment(44, 12, 66L, "<p>Small image</p>"))).join();
+        return service;
     }
 
     public static ProjectionService readyProjection() {

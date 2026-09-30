@@ -4,6 +4,51 @@ document.documentElement.classList.add('js');
   const number = (value) => Number.parseFloat(value);
   const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 
+  const initialiseCatalogueMedia = () => {
+    document.querySelectorAll('.fragment-media__image').forEach(mediaImage => {
+      if (mediaImage.dataset.mediaLoadHandlers === 'true') return;
+      mediaImage.dataset.mediaLoadHandlers = 'true';
+
+      const figure = mediaImage.closest('[data-fragment-media]');
+      if (!figure) return;
+      const fallback = figure.querySelector('.fragment-media__fallback');
+
+      const removeFileStatus = () => {
+        figure.removeAttribute('data-media-file-state');
+        figure.querySelector('[data-media-file-status]')?.remove();
+        mediaImage.hidden = false;
+      };
+
+      const showFileFailure = () => {
+        // The retained Image metadata is still AVAILABLE. This is a browser-only
+        // byte/decode failure and must not rewrite the canonical media state or src.
+        figure.dataset.mediaFileState = 'FILE_LOAD_FAILED';
+        mediaImage.hidden = true;
+        let status = figure.querySelector('[data-media-file-status]');
+        if (!status) {
+          status = document.createElement('p');
+          status.className = 'fragment-media__status fragment-media__file-status';
+          status.setAttribute('data-media-file-status', 'FILE_LOAD_FAILED');
+          status.setAttribute('role', 'status');
+          status.setAttribute('aria-live', 'polite');
+          if (fallback) figure.insertBefore(status, fallback);
+          else figure.append(status);
+        }
+        status.textContent = 'The image file could not be loaded.';
+      };
+
+      mediaImage.addEventListener('load', removeFileStatus);
+      mediaImage.addEventListener('error', showFileFailure);
+
+      // Cached images can complete before the deferred script attaches handlers.
+      // Do not force a retry or replace the URL: simply reflect the browser result.
+      if (mediaImage.complete) {
+        if (mediaImage.naturalWidth > 0) removeFileStatus();
+        else if (mediaImage.getAttribute('src')) showFileFailure();
+      }
+    });
+  };
+
   const initialiseMonthReader = () => {
     const reader = document.querySelector('[data-month-reader]');
     if (!reader) return;
@@ -11,7 +56,7 @@ document.documentElement.classList.add('js');
     const viewer = reader.querySelector('[data-viewer]');
     const surface = viewer.querySelector('[data-viewer-surface]');
     const svg = viewer.querySelector('[data-viewer-svg]');
-    const image = viewer.querySelector('[data-viewer-image]');
+    let image = viewer.querySelector('[data-viewer-image]');
     const marquee = viewer.querySelector('[data-viewer-marquee]');
     const maskBase = viewer.querySelector('[data-viewer-mask-base]');
     const maskSelection = viewer.querySelector('[data-viewer-mask-selection]');
@@ -24,6 +69,8 @@ document.documentElement.classList.add('js');
     const expandButton = viewer.querySelector('[data-viewer-expand]');
     const previousSlot = viewer.querySelector('[data-previous-slot]');
     const nextSlot = viewer.querySelector('[data-next-slot]');
+    const fitSelectionButton = viewer.querySelector('[data-viewer-action="fit-selection"]');
+    const displayButton = viewer.querySelector('[data-viewer-action="toggle-display"]');
     const pointers = new Map();
     let page = { width: 1, height: 1 };
     let view = { x: 0, y: 0, width: 1, height: 1 };
@@ -32,6 +79,9 @@ document.documentElement.classList.add('js');
     let previousPointer = null;
     let previousPinch = null;
     let focusMode = true;
+    let sourceImageState = 'idle';
+    let selectionViewerMessage = '';
+    let sourceRequestId = 0;
 
     const metadata = (fragment) => ({
       id: fragment.dataset.readerFragment,
@@ -41,6 +91,8 @@ document.documentElement.classList.add('js');
       pageWidth: number(fragment.dataset.pageWidth),
       pageHeight: number(fragment.dataset.pageHeight),
       hasMarquee: fragment.dataset.hasMarquee === 'true',
+      fragmentType: fragment.dataset.fragmentType || 'MARQUEE',
+      mediaState: fragment.dataset.mediaState || 'NOT_APPLICABLE',
       rectangle: {
         x: number(fragment.dataset.marqueeX),
         y: number(fragment.dataset.marqueeY),
@@ -50,6 +102,53 @@ document.documentElement.classList.add('js');
       url: fragment.dataset.fragmentUrl
     });
     currentPageId = metadata(fragments[selectedIndex]).pageId;
+
+    const viewerMessageFor = (data) => {
+      if (data.hasMarquee || data.fragmentType === 'IMAGE') return '';
+      if (data.fragmentType === 'MARQUEE') {
+        return 'The source region is unavailable for this transcription.';
+      }
+      return 'No source region is available for this fragment type.';
+    };
+
+    const renderViewerMessage = () => {
+      if (sourceImageState === 'loading') {
+        message.textContent = 'Loading source image…';
+      } else if (sourceImageState === 'error') {
+        message.textContent = 'The source image could not be loaded.';
+      } else {
+        message.textContent = selectionViewerMessage;
+      }
+    };
+
+    const bindSourceImageEvents = (node, requestId) => {
+      node.addEventListener('load', () => {
+        if (requestId !== sourceRequestId || node !== image) return;
+        sourceImageState = 'loaded';
+        renderViewerMessage();
+      });
+      node.addEventListener('error', () => {
+        if (requestId !== sourceRequestId || node !== image) return;
+        sourceImageState = 'error';
+        renderViewerMessage();
+      });
+    };
+    bindSourceImageEvents(image, sourceRequestId);
+
+    const replaceSourceImage = (data) => {
+      sourceRequestId += 1;
+      const requestId = sourceRequestId;
+      const replacement = image.cloneNode(false);
+      replacement.removeAttribute('href');
+      bindSourceImageEvents(replacement, requestId);
+      image.replaceWith(replacement);
+      image = replacement;
+      sourceImageState = 'loading';
+      replacement.setAttribute('width', data.pageWidth);
+      replacement.setAttribute('height', data.pageHeight);
+      replacement.setAttribute('href', data.imageUrl);
+      renderViewerMessage();
+    };
 
     const updateViewBox = () => {
       view.width = clamp(view.width, page.width / 12, page.width);
@@ -64,7 +163,6 @@ document.documentElement.classList.add('js');
 
     const fitSelection = (data) => {
       if (!data.hasMarquee) {
-        message.textContent = 'The source region is unavailable for this fragment.';
         fitPage();
         return;
       }
@@ -122,6 +220,8 @@ document.documentElement.classList.add('js');
       link.addEventListener('click', event => {
         event.preventDefault();
         selectFragment(index, true);
+        fragments[index].scrollIntoView({ block: 'center' });
+        fragments[index].querySelector('[data-fragment-selector]')?.focus({ preventScroll: true });
       });
       slot.append(link);
     };
@@ -161,11 +261,41 @@ document.documentElement.classList.add('js');
       });
     };
 
+    const renderSelectedRegion = (data) => {
+      if (data.hasMarquee) {
+        marquee.setAttribute('x', data.rectangle.x);
+        marquee.setAttribute('y', data.rectangle.y);
+        marquee.setAttribute('width', data.rectangle.width);
+        marquee.setAttribute('height', data.rectangle.height);
+        maskSelection.setAttribute('x', data.rectangle.x);
+        maskSelection.setAttribute('y', data.rectangle.y);
+        maskSelection.setAttribute('width', data.rectangle.width);
+        maskSelection.setAttribute('height', data.rectangle.height);
+      } else {
+        // Explicitly clear the old geometry rather than merely hiding it. This
+        // prevents an IMAGE selection inheriting a previous MARQUEE cut-out.
+        for (const element of [marquee, maskSelection]) {
+          element.setAttribute('x', '0');
+          element.setAttribute('y', '0');
+          element.setAttribute('width', '0');
+          element.setAttribute('height', '0');
+        }
+      }
+      marquee.classList.toggle('is-unavailable', !data.hasMarquee);
+      viewer.classList.toggle('has-selection', data.hasMarquee);
+      fitSelectionButton.disabled = !data.hasMarquee;
+      displayButton.disabled = !data.hasMarquee;
+    };
+
     const selectFragment = (index, addHistory) => {
       if (index < 0 || index >= fragments.length) return;
+      const previousData = selectedIndex >= 0 && selectedIndex < fragments.length
+        ? metadata(fragments[selectedIndex])
+        : null;
       const fragment = fragments[index];
       const data = metadata(fragment);
       const pageChanged = currentPageId !== null && currentPageId !== data.pageId;
+      const leavingSelectedRegion = Boolean(previousData?.hasMarquee && !data.hasMarquee);
       selectedIndex = index;
       fragments.forEach((item, itemIndex) => {
         const selected = itemIndex === index;
@@ -183,29 +313,19 @@ document.documentElement.classList.add('js');
       maskBase.setAttribute('height', data.pageHeight);
       dimming.setAttribute('width', data.pageWidth);
       dimming.setAttribute('height', data.pageHeight);
-      marquee.setAttribute('x', data.rectangle.x);
-      marquee.setAttribute('y', data.rectangle.y);
-      marquee.setAttribute('width', data.rectangle.width);
-      marquee.setAttribute('height', data.rectangle.height);
-      maskSelection.setAttribute('x', data.rectangle.x);
-      maskSelection.setAttribute('y', data.rectangle.y);
-      maskSelection.setAttribute('width', data.rectangle.width);
-      maskSelection.setAttribute('height', data.rectangle.height);
-      marquee.classList.toggle('is-unavailable', !data.hasMarquee);
-      viewer.classList.toggle('has-selection', data.hasMarquee);
-      const displayButton = viewer.querySelector('[data-viewer-action="toggle-display"]');
-      displayButton.disabled = !data.hasMarquee;
+      renderSelectedRegion(data);
       renderMarqueeTargets(data);
       pageName.textContent = data.pageName;
       svgPageName.textContent = data.pageName;
-      message.textContent = data.hasMarquee ? '' : 'The source region is unavailable for this fragment.';
+      selectionViewerMessage = viewerMessageFor(data);
+      renderViewerMessage();
 
-      if (currentPageId !== data.pageId) {
-        message.textContent = 'Loading source image…';
-        image.setAttribute('href', data.imageUrl);
-      }
+      if (currentPageId !== data.pageId) replaceSourceImage(data);
       currentPageId = data.pageId;
-      if (pageChanged || view.width === 1) fitPage();
+
+      // IMAGE/unknown selection must not retain a zoomed "fit selection" view
+      // from the previous MARQUEE, even when both fragments share the same Page.
+      if (!data.hasMarquee || pageChanged || leavingSelectedRegion || view.width === 1) fitPage();
       else keepMarqueeVisible(data);
 
       setNavigationLink(previousSlot, index - 1, '← Previous fragment', 'data-previous-fragment');
@@ -213,8 +333,6 @@ document.documentElement.classList.add('js');
       if (addHistory) window.history.pushState({ fragmentId: data.id }, '', data.url);
     };
 
-    image.addEventListener('load', () => { message.textContent = ''; });
-    image.addEventListener('error', () => { message.textContent = 'The source image could not be loaded.'; });
     fragments.forEach((fragment, index) => {
       const selector = fragment.querySelector('[data-fragment-selector]');
       selector.addEventListener('click', event => {
@@ -330,19 +448,34 @@ document.documentElement.classList.add('js');
     const transcripts = Array.from(sourcePage.querySelectorAll('[data-transcript-fragment]'));
     const ids = new Set(transcripts.map(item => item.dataset.transcriptFragment));
     if (ids.size === 0) return;
-    const select = id => {
+
+    const select = (id, addHistory = false) => {
       if (!ids.has(id)) return;
       marquees.forEach(item => item.classList.toggle('is-selected', item.dataset.marqueeFragment === id));
-      transcripts.forEach(item => item.classList.toggle('is-selected', item.dataset.transcriptFragment === id));
+      transcripts.forEach(item => {
+        const selected = item.dataset.transcriptFragment === id;
+        item.classList.toggle('is-selected', selected);
+        if (selected) item.setAttribute('aria-current', 'true');
+        else item.removeAttribute('aria-current');
+      });
       sourcePage.querySelectorAll('[data-fragment-selector]').forEach(button =>
         button.setAttribute('aria-pressed', String(button.dataset.fragmentSelector === id)));
+      if (addHistory) window.history.pushState({ fragmentId: id }, '', `#fragment-${id}`);
     };
+
+    const restoreFromLocation = () => {
+      const hashId = window.location.hash.match(/^#fragment-(\d+)$/)?.[1];
+      select(ids.has(hashId) ? hashId : transcripts[0].dataset.transcriptFragment, false);
+    };
+
     sourcePage.querySelectorAll('[data-fragment-selector]').forEach(button =>
-      button.addEventListener('click', () => select(button.dataset.fragmentSelector)));
-    const hashId = window.location.hash.match(/^#fragment-(\d+)$/)?.[1];
-    select(ids.has(hashId) ? hashId : transcripts[0].dataset.transcriptFragment);
+      button.addEventListener('click', () => select(button.dataset.fragmentSelector, true)));
+    window.addEventListener('popstate', restoreFromLocation);
+    window.addEventListener('hashchange', restoreFromLocation);
+    restoreFromLocation();
   };
 
+  initialiseCatalogueMedia();
   initialiseMonthReader();
   initialiseLegacySourcePage();
 })();

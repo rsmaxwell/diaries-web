@@ -13,7 +13,7 @@
     <svg viewBox="0 0 {{ page.width }} {{ page.height }}" role="img" aria-labelledby="source-title source-description">
       <title id="source-title">Original page {{ page.name }}</title>
       <desc id="source-description">The scanned diary page. The selected transcript region is highlighted.</desc>
-      <image href="{{ page.imageUrl }}" width="{{ page.width }}" height="{{ page.height }}"></image>
+      <image href="{{ page.pageImageUrl }}" width="{{ page.width }}" height="{{ page.height }}"></image>
       {% for fragment in fragments %}
       {% if fragment.hasMarquee %}
       <a class="marquee-link"
@@ -34,15 +34,26 @@
       {% for fragment in fragments %}
       <article class="fragment"
                id="{{ fragment.anchor }}"
-               data-transcript-fragment="{{ fragment.id }}">
+               data-transcript-fragment="{{ fragment.id }}"
+               data-fragment-type="{{ fragment.fragmentType }}" data-media-state="{{ fragment.mediaState }}">
         <div class="fragment__heading">
           <h3><a href="{{ fragment.monthUrl }}">{{ fragment.date }}</a></h3>
-          {% if fragment.hasMarquee %}<button class="fragment__selector"
+          <button class="fragment__selector"
                   type="button"
                   data-fragment-selector="{{ fragment.id }}"
-                  aria-pressed="false">Show on original page</button>{% endif %}
+                  aria-pressed="false">{% if fragment.hasMarquee %}Show on original page{% elseif fragment.fragmentType == "IMAGE" %}Select image fragment{% else %}Select fragment{% endif %}</button>
         </div>
         <div class="fragment__content">{{ fragment.html | raw }}</div>
+        {% if fragment.mediaUrl %}
+        <figure class="fragment-media" data-fragment-media="{{ fragment.id }}">
+          <img class="fragment-media__image" src="{{ fragment.mediaUrl }}" alt="{{ fragment.mediaAltText }}"
+               width="{{ fragment.mediaWidth }}" height="{{ fragment.mediaHeight }}" loading="lazy" decoding="async">
+          {% if fragment.mediaCaption %}<figcaption class="fragment-media__caption">{{ fragment.mediaCaption }}</figcaption>{% endif %}
+          <p class="fragment-media__fallback"><a href="{{ fragment.mediaUrl }}">Open image directly</a></p>
+        </figure>
+        {% else %}
+          {% if fragment.mediaUnavailableText %}<p class="fragment-media__status" data-media-state="{{ fragment.mediaState }}">{{ fragment.mediaUnavailableText }}</p>{% endif %}
+        {% endif %}
       </article>
       {% endfor %}
     {% else %}

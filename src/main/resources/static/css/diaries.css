@@ -95,6 +95,13 @@ button, select { font: inherit; }
 .fragment__content img { max-width: 100%; }
 .fragment__content pre { overflow-wrap: anywhere; white-space: pre-wrap; }
 
+.fragment-media { margin: 1rem 0 0; max-width: 100%; }
+.fragment-media__image { background: #f3efe7; border: 1px solid var(--line); display: block; height: auto; max-width: 100%; }
+.fragment-media__caption { color: var(--muted); font-family: system-ui, sans-serif; font-size: .86rem; margin-top: .5rem; overflow-wrap: anywhere; }
+.fragment-media__fallback { font-family: system-ui, sans-serif; font-size: .8rem; margin: .45rem 0 0; }
+.fragment-media__status { background: #f7f4ed; border-left: .25rem solid var(--line); color: var(--muted); font-family: system-ui, sans-serif; font-size: .9rem; margin: .8rem 0 0; padding: .55rem .75rem; }
+.fragment-media__file-status { border-left-color: var(--accent); color: var(--ink); }
+
 .source-image { margin: 0; position: sticky; top: 1rem; }
 .source-image svg { display: block; background: #e9e4da; border: 1px solid var(--line); }
 .source-image figcaption { color: var(--muted); font-family: system-ui, sans-serif; font-size: .8rem; margin-top: .6rem; }

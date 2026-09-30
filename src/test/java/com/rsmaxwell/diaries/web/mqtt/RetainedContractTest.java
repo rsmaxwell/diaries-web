@@ -279,6 +279,42 @@ class RetainedContractTest {
                 .hasMessageContaining("fragment type");
     }
 
+    @Test
+    void step11KeepsRetainedImageAndFragmentCompatibilityBoundariesDistinct() throws Exception {
+        Map<String, Object> additiveImage = validImage();
+        additiveImage.put("futureObject", Map.of("nested", true));
+        ImageItem decoded = ((ProjectionEvent.UpsertImage) decoder.decode(
+                "diaries/images/60", json.writeValueAsBytes(additiveImage))).value();
+        assertThat(decoded.id()).isEqualTo(60L);
+        assertThat(decoded.relativePath()).isEqualTo("1829/06/img2893-detail.jpg");
+
+        assertThat(decoder.decode("diaries/images/60", new byte[0]))
+                .isEqualTo(new ProjectionEvent.Tombstone(EntityType.IMAGE, 60));
+        assertThatThrownBy(() -> decoder.decode("diaries/images/61", json.writeValueAsBytes(additiveImage)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("id mismatch");
+
+        byte[] explicitLegacyNull = ("{\"id\":70,\"version\":0,\"year\":2026,\"month\":9,\"day\":20,"
+                + "\"sequence\":1,\"text\":\"legacy\",\"pageId\":22,\"type\":null}")
+                .getBytes(StandardCharsets.UTF_8);
+        FragmentItem legacy = ((ProjectionEvent.UpsertFragment)
+                decoder.decode("diaries/fragments/70", explicitLegacyNull)).value();
+        assertThat(legacy.type()).isNull();
+        assertThat(legacy.rawType()).isNull();
+        assertThat(legacy.effectiveType()).isEqualTo(FragmentType.MARQUEE);
+
+        byte[] future = ("{\"id\":71,\"version\":0,\"year\":2026,\"month\":9,\"day\":20,"
+                + "\"sequence\":2,\"text\":\"future\",\"pageId\":22,\"type\":\"VIDEO\","
+                + "\"imageId\":60,\"futureField\":\"ignored\"}")
+                .getBytes(StandardCharsets.UTF_8);
+        FragmentItem unknown = ((ProjectionEvent.UpsertFragment)
+                decoder.decode("diaries/fragments/71", future)).value();
+        assertThat(unknown.type()).isEqualTo(FragmentType.UNKNOWN);
+        assertThat(unknown.rawType()).isEqualTo("VIDEO");
+        assertThat(unknown.effectiveType()).isEqualTo(FragmentType.UNKNOWN);
+        assertThat(unknown.imageId()).isEqualTo(60L);
+    }
+
     private static ImageMutationCase imageCase(String name, Consumer<Map<String, Object>> mutation) {
         return new ImageMutationCase(name, mutation);
     }

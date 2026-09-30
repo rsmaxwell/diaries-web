@@ -3,7 +3,9 @@ package com.rsmaxwell.diaries.web.rendering;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 
@@ -109,6 +111,37 @@ class RenderingSafetyTest {
     }
 
     @Test
+    void browserVisibleCatalogueUrlsUseOnlyThePublicBaseAndEncodeLiteralRouteData() {
+        ImageUrlBuilder builder = new ImageUrlBuilder(new ContentConfig(
+                "http://private-responder.internal:8081/internal",
+                "/public-responder",
+                "diaries",
+                "archive/été 100%/catalogue"));
+
+        String url = builder.catalogueImageUrl("diary-1830/images/café 50% +#?.png");
+
+        assertThat(url)
+                .isEqualTo("/public-responder/archive/%C3%A9t%C3%A9%20100%25/catalogue/diary-1830/images/"
+                        + "caf%C3%A9%2050%25%20%2B%23%3F.png")
+                .doesNotContain("private-responder.internal", "http://private-responder.internal:8081");
+        assertThatThrownBy(() -> builder.catalogueImageUrl("https://evil.example.test/image.png"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void templatesReserveRawRenderingForSanitizedFragmentHtmlOnly() throws Exception {
+        String month = resourceText("/templates/month-reader.peb");
+        String source = resourceText("/templates/source-page.peb");
+
+        assertThat(occurrences(month, "| raw")).isEqualTo(1);
+        assertThat(occurrences(source, "| raw")).isEqualTo(1);
+        assertThat(month).contains("fragment.html | raw")
+                .doesNotContain("mediaAltText | raw", "mediaCaption | raw", "mediaUrl | raw");
+        assertThat(source).contains("fragment.html | raw")
+                .doesNotContain("mediaAltText | raw", "mediaCaption | raw", "mediaUrl | raw");
+    }
+
+    @Test
     void customFilesRouteAlsoAppliesToLegacyBaseWithoutChangingItsShape() {
         ImageUrlBuilder builder = new ImageUrlBuilder(new ContentConfig(
                 "http://responder:8080", "/proxy/responder", "diaries", "content/files"));
@@ -116,5 +149,24 @@ class RenderingSafetyTest {
 
         assertThat(builder.legacyFragmentImageBaseUrl(diary))
                 .isEqualTo("/proxy/responder/content/files/Family%20%26%20Friends/images");
+    }
+
+    private static String resourceText(String name) throws IOException {
+        try (var input = RenderingSafetyTest.class.getResourceAsStream(name)) {
+            if (input == null) {
+                throw new IOException("missing test resource " + name);
+            }
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static int occurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 }

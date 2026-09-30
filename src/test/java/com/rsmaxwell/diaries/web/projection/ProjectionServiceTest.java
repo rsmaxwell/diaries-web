@@ -23,6 +23,7 @@ import com.rsmaxwell.diaries.web.model.FragmentItem;
 import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
+import com.rsmaxwell.diaries.web.model.PageItem;
 import com.rsmaxwell.diaries.web.mqtt.EntityType;
 
 class ProjectionServiceTest {
@@ -530,6 +531,96 @@ class ProjectionServiceTest {
             assertThat(service.snapshot().resolveFragment(69).orElseThrow().mediaState())
                     .isEqualTo(ResolvedFragment.MediaState.AVAILABLE);
             assertThat(service.snapshot().resolveFragment(69).orElseThrow().page().id()).isEqualTo(22L);
+        }
+    }
+
+    @Test
+    void step11DistinguishesEveryDegradedRelationshipStateWithoutDroppingValidPageOwnedRows() {
+        ImageItem available = image(60, 0, "Available");
+        FragmentItem withoutPageId = new FragmentItem(80, 0, 2026, 9, 17, BigDecimal.ONE,
+                "no page id", null, FragmentType.IMAGE, 60L, null);
+        FragmentItem missingPage = new FragmentItem(81, 0, 2026, 9, 17, new BigDecimal("2"),
+                "missing page", 999L, FragmentType.IMAGE, 60L, null);
+        FragmentItem marqueeMissingRegion = new FragmentItem(82, 0, 2026, 9, 17, new BigDecimal("3"),
+                "marquee no region", 22L, FragmentType.MARQUEE, null, null);
+        FragmentItem marqueeWithImage = new FragmentItem(83, 0, 2026, 9, 17, new BigDecimal("4"),
+                "marquee illegal image", 22L, FragmentType.MARQUEE, 60L, null);
+        FragmentItem imageNoSelection = new FragmentItem(84, 0, 2026, 9, 17, new BigDecimal("5"),
+                "image no selection", 22L, FragmentType.IMAGE, null, null);
+        FragmentItem imageMissingMetadata = new FragmentItem(85, 0, 2026, 9, 17, new BigDecimal("6"),
+                "image missing metadata", 22L, FragmentType.IMAGE, 404L, null);
+        FragmentItem imageInvalidMetadata = new FragmentItem(86, 0, 2026, 9, 17, new BigDecimal("7"),
+                "image invalid metadata", 22L, FragmentType.IMAGE, 405L, null);
+        FragmentItem imageWithMarquee = new FragmentItem(87, 0, 2026, 9, 17, new BigDecimal("8"),
+                "image illegal marquee", 22L, FragmentType.IMAGE, 60L, null);
+        FragmentItem unknown = new FragmentItem(88, 0, 2026, 9, 17, new BigDecimal("9"),
+                "future type", 22L, FragmentType.UNKNOWN, "VIDEO", null, null);
+        FragmentItem legacy = new FragmentItem(89, 0, 2026, 9, 17, new BigDecimal("10"),
+                "legacy marquee", 22L, null, null, null);
+        FragmentItem pageWithoutDiary = new FragmentItem(90, 0, 2026, 9, 17, new BigDecimal("11"),
+                "page without diary", 23L, FragmentType.MARQUEE, null, null);
+
+        MarqueeItem marqueeFor83 = new MarqueeItem(93, 0, 22, 83, marquee().rectangle());
+        MarqueeItem illegalForImage87 = new MarqueeItem(94, 0, 22, 87, marquee().rectangle());
+        MarqueeItem marqueeForLegacy89 = new MarqueeItem(95, 0, 22, 89, marquee().rectangle());
+
+        try (ProjectionService service = service()) {
+            service.beginReplay(false).join();
+            service.accept(new ProjectionEvent.UpsertDiary(diary())).join();
+            service.accept(new ProjectionEvent.UpsertPage(page())).join();
+            service.accept(new ProjectionEvent.UpsertPage(
+                    new PageItem(23, 0, 999, "orphan page", BigDecimal.TEN, "jpg", 100, 100))).join();
+            service.accept(new ProjectionEvent.UpsertImage(available)).join();
+            for (FragmentItem fragment : List.of(
+                    withoutPageId, missingPage, marqueeMissingRegion, marqueeWithImage,
+                    imageNoSelection, imageMissingMetadata, imageInvalidMetadata,
+                    imageWithMarquee, unknown, legacy, pageWithoutDiary)) {
+                service.accept(new ProjectionEvent.UpsertFragment(fragment)).join();
+            }
+            service.accept(new ProjectionEvent.UpsertMarquee(marqueeFor83)).join();
+            service.accept(new ProjectionEvent.UpsertMarquee(illegalForImage87)).join();
+            service.accept(new ProjectionEvent.UpsertMarquee(marqueeForLegacy89)).join();
+            service.recordInvalidImage(405).join();
+            service.subscriptionsAcknowledged().join();
+            await().atMost(WAIT).until(() -> service.status().ready());
+
+            var snapshot = service.snapshot();
+            var diagnostics = snapshot.relationshipDiagnostics();
+            assertThat(diagnostics.fragmentsWithoutPageId()).isEqualTo(1);
+            assertThat(diagnostics.fragmentsWithMissingPage()).isEqualTo(1);
+            assertThat(diagnostics.fragmentPagesWithoutDiary()).isEqualTo(1);
+            assertThat(diagnostics.fragmentsWithoutPage()).isEqualTo(2);
+            assertThat(diagnostics.fragmentsWithUnknownType()).isEqualTo(1);
+            assertThat(diagnostics.marqueeFragmentsWithoutMarquee()).isEqualTo(1);
+            assertThat(diagnostics.marqueeFragmentsWithImage()).isEqualTo(1);
+            assertThat(diagnostics.imageFragmentsWithMarquee()).isEqualTo(1);
+            assertThat(diagnostics.imageFragmentsWithoutImage()).isEqualTo(1);
+            assertThat(diagnostics.imagesReferencedButMissing()).isEqualTo(1);
+            assertThat(diagnostics.imagesReferencedButInvalid()).isEqualTo(1);
+            assertThat(diagnostics.legacyTypeFallbacks()).isEqualTo(1);
+
+            assertThat(snapshot.resolveFragment(80)).isEmpty();
+            assertThat(snapshot.resolveFragment(81)).isEmpty();
+            assertThat(snapshot.resolveFragment(90)).isEmpty();
+            assertThat(snapshot.resolveFragment(82).orElseThrow().mediaState())
+                    .isEqualTo(ResolvedFragment.MediaState.NOT_APPLICABLE);
+            assertThat(snapshot.resolveFragment(83).orElseThrow().image()).isEmpty();
+            assertThat(snapshot.resolveFragment(84).orElseThrow().mediaState())
+                    .isEqualTo(ResolvedFragment.MediaState.NO_SELECTION);
+            assertThat(snapshot.resolveFragment(85).orElseThrow().mediaState())
+                    .isEqualTo(ResolvedFragment.MediaState.MISSING_METADATA);
+            assertThat(snapshot.resolveFragment(86).orElseThrow().mediaState())
+                    .isEqualTo(ResolvedFragment.MediaState.INVALID_METADATA);
+            assertThat(snapshot.resolveFragment(87).orElseThrow().mediaState())
+                    .isEqualTo(ResolvedFragment.MediaState.AVAILABLE);
+            assertThat(snapshot.resolveFragment(87).orElseThrow().marquee()).isEmpty();
+            assertThat(snapshot.resolveFragment(88).orElseThrow().mediaState())
+                    .isEqualTo(ResolvedFragment.MediaState.UNSUPPORTED_TYPE);
+            assertThat(snapshot.resolveFragment(89).orElseThrow().marquee()).contains(marqueeForLegacy89);
+
+            assertThat(snapshot.fragmentsForDay(11, marqueeMissingRegion.date()))
+                    .extracting(FragmentItem::id)
+                    .containsExactly(82L, 83L, 84L, 85L, 86L, 87L, 88L, 89L);
         }
     }
 

@@ -22,6 +22,8 @@ import com.rsmaxwell.diaries.web.buildinfo.BuildInfo;
 import com.rsmaxwell.diaries.web.config.AppConfig;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentType;
+import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
 import com.rsmaxwell.diaries.web.model.PageItem;
 import com.rsmaxwell.diaries.web.model.RectangleItem;
@@ -297,24 +299,25 @@ public final class WebServer implements AutoCloseable {
     private Map<String, Object> fragmentView(ResolvedFragment resolved, YearMonth month, boolean selected) {
         FragmentItem fragment = resolved.fragment();
         PageItem page = resolved.page();
-        RectangleItem rectangle = resolved.marquee().map(MarqueeItem::rectangle).orElse(null);
+        Map<String, Object> view = baseFragmentView(resolved);
+        RectangleItem rectangle = Boolean.TRUE.equals(view.get("hasMarquee"))
+                ? resolved.marquee().map(MarqueeItem::rectangle).orElse(null)
+                : null;
         double x = rectangle == null ? 0 : Math.min(page.width(), Math.max(0, rectangle.x()));
         double y = rectangle == null ? 0 : Math.min(page.height(), Math.max(0, rectangle.y()));
         double right = rectangle == null ? 0 : Math.min(page.width(), rectangle.x() + rectangle.width());
         double bottom = rectangle == null ? 0 : Math.min(page.height(), rectangle.y() + rectangle.height());
         boolean hasMarquee = rectangle != null && right > x && bottom > y;
-        Map<String, Object> view = new LinkedHashMap<>();
-        view.put("id", fragment.id());
-        view.put("anchor", "fragment-" + fragment.id());
-        view.put("html", sanitizer.sanitize(
-                fragment.text(),
-                imageUrlBuilder.legacyFragmentImageBaseUrl(resolved.diary())));
+        String pageImageUrl = imageUrlBuilder.pageImageUrl(resolved.diary(), page);
+
         view.put("url", urls.monthFragment(resolved.diary().id(), month, fragment.id()));
-        view.put("date", dateFormatter.format(fragment.date()));
         view.put("selected", selected);
         view.put("pageId", page.id());
         view.put("pageName", page.name());
-        view.put("imageUrl", imageUrlBuilder.pageImageUrl(resolved.diary(), page));
+        view.put("pageImageUrl", pageImageUrl);
+        // Compatibility alias for the Step-1..7 template. Step 9 switches the
+        // template to the explicitly named pageImageUrl field.
+        view.put("imageUrl", pageImageUrl);
         view.put("pageWidth", page.width());
         view.put("pageHeight", page.height());
         view.put("hasMarquee", hasMarquee);
@@ -323,6 +326,73 @@ public final class WebServer implements AutoCloseable {
         view.put("width", hasMarquee ? right - x : 0);
         view.put("height", hasMarquee ? bottom - y : 0);
         return view;
+    }
+
+    private Map<String, Object> baseFragmentView(ResolvedFragment resolved) {
+        FragmentItem fragment = resolved.fragment();
+        Map<String, Object> view = fragmentMediaView(resolved);
+        view.put("id", fragment.id());
+        view.put("anchor", "fragment-" + fragment.id());
+        view.put("html", sanitizer.sanitize(
+                fragment.text(),
+                imageUrlBuilder.legacyFragmentImageBaseUrl(resolved.diary())));
+        view.put("date", dateFormatter.format(fragment.date()));
+        return view;
+    }
+
+    /**
+     * Shared typed-media view used by both month-reader and source-page responses.
+     *
+     * <p>Catalogue Image metadata is copied as ordinary template data. Only
+     * Fragment HTML is sanitized and later rendered through the existing
+     * explicitly-raw HTML slot. Media URL, caption and alternative text are never
+     * converted to HTML here, so Pebble's normal escaping remains in force when
+     * Step 9 starts rendering them.</p>
+     */
+    Map<String, Object> fragmentMediaView(ResolvedFragment resolved) {
+        FragmentItem fragment = resolved.fragment();
+        FragmentType effectiveType = fragment.effectiveType();
+        Map<String, Object> view = new LinkedHashMap<>();
+
+        view.put("fragmentType", fragmentTypeName(fragment));
+        view.put("mediaState", resolved.mediaState().name());
+        view.put("hasMarquee",
+                effectiveType == FragmentType.MARQUEE && resolved.marquee().isPresent());
+        view.put("mediaUrl", null);
+        view.put("mediaAltText", null);
+        view.put("mediaCaption", null);
+        view.put("mediaWidth", null);
+        view.put("mediaHeight", null);
+        view.put("mediaUnavailableText", unavailableMediaText(resolved.mediaState()));
+
+        if (effectiveType == FragmentType.IMAGE
+                && resolved.mediaState() == ResolvedFragment.MediaState.AVAILABLE) {
+            ImageItem image = resolved.image().orElseThrow(() -> new IllegalStateException(
+                    "AVAILABLE IMAGE fragment has no resolved Image metadata: " + fragment.id()));
+            view.put("mediaUrl", imageUrlBuilder.catalogueImageUrl(image.relativePath()));
+            view.put("mediaAltText", image.altText());
+            view.put("mediaCaption", image.caption());
+            view.put("mediaWidth", image.width());
+            view.put("mediaHeight", image.height());
+        }
+
+        return view;
+    }
+
+    private static String fragmentTypeName(FragmentItem fragment) {
+        if (fragment.type() == FragmentType.UNKNOWN) {
+            return fragment.rawType();
+        }
+        return fragment.effectiveType().name();
+    }
+
+    private static String unavailableMediaText(ResolvedFragment.MediaState state) {
+        return switch (state) {
+            case NO_SELECTION -> "No image selected";
+            case MISSING_METADATA, INVALID_METADATA -> "Image unavailable";
+            case UNSUPPORTED_TYPE -> "Unsupported fragment type";
+            case NOT_APPLICABLE, AVAILABLE -> null;
+        };
     }
 
     private void redirectDay(Context ctx, boolean head) {
@@ -357,17 +427,11 @@ public final class WebServer implements AutoCloseable {
         List<Map<String, Object>> fragments = new ArrayList<>();
         for (ResolvedFragment resolved : snapshot.fragmentsForPage(pageId)) {
             FragmentItem fragment = resolved.fragment();
-            Map<String, Object> view = new LinkedHashMap<>();
-            view.put("id", fragment.id());
-            view.put("anchor", "fragment-" + fragment.id());
-            view.put("html", sanitizer.sanitize(
-                    fragment.text(),
-                    imageUrlBuilder.legacyFragmentImageBaseUrl(diary)));
+            Map<String, Object> view = baseFragmentView(resolved);
             view.put("monthUrl", urls.monthFragment(diaryId, YearMonth.from(fragment.date()), fragment.id()));
-            view.put("date", dateFormatter.format(fragment.date()));
-            boolean hasMarquee = resolved.marquee().isPresent();
-            view.put("hasMarquee", hasMarquee);
-            RectangleItem rectangle = resolved.marquee().map(MarqueeItem::rectangle).orElse(null);
+            RectangleItem rectangle = Boolean.TRUE.equals(view.get("hasMarquee"))
+                    ? resolved.marquee().map(MarqueeItem::rectangle).orElse(null)
+                    : null;
             view.put("x", rectangle == null ? 0 : rectangle.x());
             view.put("y", rectangle == null ? 0 : rectangle.y());
             view.put("width", rectangle == null ? 0 : rectangle.width());
@@ -376,8 +440,14 @@ public final class WebServer implements AutoCloseable {
         }
         Map<String, Object> model = commonModel(page.name() + " – " + diary.name(), ctx);
         model.put("diary", Map.of("name", diary.name(), "url", urls.diary(diaryId)));
-        model.put("page", Map.of("name", page.name(), "width", page.width(), "height", page.height(),
-                "imageUrl", imageUrlBuilder.pageImageUrl(diary, page)));
+        String pageImageUrl = imageUrlBuilder.pageImageUrl(diary, page);
+        model.put("page", Map.of(
+                "name", page.name(),
+                "width", page.width(),
+                "height", page.height(),
+                "pageImageUrl", pageImageUrl,
+                // Compatibility alias for the current Step-1..7 source-page template.
+                "imageUrl", pageImageUrl));
         model.put("fragments", fragments);
         model.put("hasFragments", !fragments.isEmpty());
         renderSnapshot(ctx, "source-page.peb", model, snapshot, "page-" + pageId, head);

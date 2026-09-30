@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -94,6 +95,7 @@ class WebServerTest {
                     ">Month reader</p>", "2 published fragments", "data-viewer-action=\"reset\"");
             assertThat(selected.statusCode()).isEqualTo(200);
             assertThat(month.body()).contains("reader-viewer is-focus-mode has-selection");
+            assertThat(month.body()).doesNotContain("data-viewer-action=\"fit-selection\" disabled");
             assertThat(selected.body()).contains("Previous fragment", "page 002",
                     "https://content.example.test/diaries/Family%20diary/page%20002.jpg");
             assertThat(selected.body()).containsPattern("(?s)data-reader-fragment=\"34\".*?aria-current=\"true\"");
@@ -109,6 +111,9 @@ class WebServerTest {
                     ".reader-viewer.is-focus-mode.has-selection .viewer-dimming", ".marquee-target:focus",
                     "fill: rgba(40, 40, 40, .65)",
                     ".fragment__content[data-fragment-selector]",
+                    ".fragment-media__image", "height: auto", ".fragment-media__status", ".fragment-media__file-status",
+                    "@media (max-width: 48rem)",
+                    ".contents-layout, .source-layout, .month-reader { grid-template-columns: 1fr; }",
                     ".month-heading h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)",
                     ".source-page-heading--untranscribed h1 { font-size: clamp(1.5rem, 2.5vw, 2.15rem)");
             assertThat(javascript.body()).contains("initialiseMonthReader", "zoomAt", "window.history.pushState",
@@ -117,7 +122,15 @@ class WebServerTest {
             assertThat(javascript.body()).contains("toggle-display", "is-focus-mode", "Use highlight style");
             assertThat(javascript.body()).contains("renderMarqueeTargets", "document.createElementNS",
                     "selectFromMarquee", "scrollIntoView", "event.key !== 'Enter' && event.key !== ' '");
-            assertThat(javascript.body()).doesNotContain("view.x = clamp", "view.y = clamp");
+            assertThat(javascript.body()).contains(
+                    "initialiseCatalogueMedia", "FILE_LOAD_FAILED", "mediaLoadHandlers",
+                    "mediaImage.hidden = true", "data-media-file-status", "fragmentType",
+                    "renderSelectedRegion", "fitSelectionButton.disabled = !data.hasMarquee",
+                    "replaceSourceImage", "sourceRequestId", "selectionViewerMessage",
+                    "window.addEventListener('hashchange', restoreFromLocation)",
+                    "window.history.pushState({ fragmentId: id }, '', `#fragment-${id}`)");
+            assertThat(javascript.body()).doesNotContain("view.x = clamp", "view.y = clamp",
+                    "mediaImage.setAttribute('src'", "mediaImage.src =");
             assertThat(index.headers().firstValue("Content-Security-Policy"))
                     .hasValueSatisfying(value -> assertThat(value)
                             .contains("default-src 'none'", "form-action 'self'",
@@ -157,9 +170,213 @@ class WebServerTest {
             assertThat(month.body()).contains("No marquee text", "data-has-marquee=\"false\"");
             assertThat(month.body()).doesNotContain("reader-viewer is-focus-mode has-selection");
             assertThat(source.statusCode()).isEqualTo(200);
-            assertThat(source.body()).contains("No marquee text");
-            assertThat(source.body()).doesNotContain("data-marquee-fragment=\"35\"",
-                    "data-fragment-selector=\"35\"");
+            assertThat(source.body()).contains("No marquee text", "data-fragment-selector=\"35\"", "Select fragment");
+            assertThat(source.body()).doesNotContain("data-marquee-fragment=\"35\"");
+        }
+    }
+
+
+    @Test
+    void suppliesOneTypedMediaViewForMonthAndSourceRendering() {
+        try (ProjectionService projection = TestData.readyMixedMediaProjection(); WebServer server = server(projection)) {
+            Map<String, Object> marquee = server.fragmentMediaView(
+                    projection.snapshot().resolveFragment(33).orElseThrow());
+            Map<String, Object> first = server.fragmentMediaView(
+                    projection.snapshot().resolveFragment(35).orElseThrow());
+            Map<String, Object> second = server.fragmentMediaView(
+                    projection.snapshot().resolveFragment(36).orElseThrow());
+            Map<String, Object> missing = server.fragmentMediaView(
+                    projection.snapshot().resolveFragment(37).orElseThrow());
+            Map<String, Object> unknown = server.fragmentMediaView(
+                    projection.snapshot().resolveFragment(38).orElseThrow());
+            Map<String, Object> noSelection = server.fragmentMediaView(
+                    projection.snapshot().resolveFragment(39).orElseThrow());
+            Map<String, Object> invalid = server.fragmentMediaView(
+                    projection.snapshot().resolveFragment(40).orElseThrow());
+
+            assertThat(marquee).containsEntry("fragmentType", "MARQUEE")
+                    .containsEntry("mediaState", "NOT_APPLICABLE")
+                    .containsEntry("hasMarquee", true)
+                    .containsEntry("mediaUrl", null)
+                    .containsEntry("mediaUnavailableText", null);
+            assertThat(first).containsEntry("fragmentType", "IMAGE")
+                    .containsEntry("mediaState", "AVAILABLE")
+                    .containsEntry("hasMarquee", false)
+                    .containsEntry("mediaUrl",
+                            "https://content.example.test/files/diary-2026/images/shared%20detail%20%2B%23%3F.png")
+                    .containsEntry("mediaAltText", "Map <east> & west")
+                    .containsEntry("mediaCaption", "Shared <caption> & detail")
+                    .containsEntry("mediaWidth", 1600)
+                    .containsEntry("mediaHeight", 900)
+                    .containsEntry("mediaUnavailableText", null);
+            assertThat(second).containsEntry("mediaUrl", first.get("mediaUrl"))
+                    .containsEntry("mediaCaption", first.get("mediaCaption"));
+            assertThat(missing).containsEntry("fragmentType", "IMAGE")
+                    .containsEntry("mediaState", "MISSING_METADATA")
+                    .containsEntry("hasMarquee", false)
+                    .containsEntry("mediaUrl", null)
+                    .containsEntry("mediaUnavailableText", "Image unavailable");
+            assertThat(unknown).containsEntry("fragmentType", "AUDIO")
+                    .containsEntry("mediaState", "UNSUPPORTED_TYPE")
+                    .containsEntry("hasMarquee", false)
+                    .containsEntry("mediaUrl", null)
+                    .containsEntry("mediaUnavailableText", "Unsupported fragment type");
+            assertThat(noSelection).containsEntry("fragmentType", "IMAGE")
+                    .containsEntry("mediaState", "NO_SELECTION")
+                    .containsEntry("mediaUrl", null)
+                    .containsEntry("mediaUnavailableText", "No image selected");
+            assertThat(invalid).containsEntry("fragmentType", "IMAGE")
+                    .containsEntry("mediaState", "INVALID_METADATA")
+                    .containsEntry("hasMarquee", false)
+                    .containsEntry("mediaUrl", null)
+                    .containsEntry("mediaUnavailableText", "Image unavailable");
+        }
+    }
+
+    @Test
+    void mixedTypedFragmentsRemainAvailableThroughMonthAndSourceHttpResponses() throws Exception {
+        try (ProjectionService projection = TestData.readyMixedMediaProjection(); WebServer server = server(projection)) {
+            server.start();
+
+            HttpResponse<String> selectedImage = get(server, "/reader/diaries/11/2026/09?fragment=35");
+            HttpResponse<String> source = get(server, "/reader/diaries/11/pages/22");
+            HttpResponse<String> fragmentRedirect = get(server, "/reader/fragments/35");
+            HttpResponse<String> head = send(server, "/reader/diaries/11/2026/09?fragment=35", "HEAD", null, null);
+
+            assertThat(selectedImage.statusCode()).isEqualTo(200);
+            String sharedImageUrl =
+                    "https://content.example.test/files/diary-2026/images/shared%20detail%20%2B%23%3F.png";
+            String emptyAltImageUrl =
+                    "https://content.example.test/files/diary-2026/images/decorative%20scan.jpg";
+            String tallImageUrl =
+                    "https://content.example.test/files/diary-2026/images/tall%20portrait.png";
+            String wideImageUrl =
+                    "https://content.example.test/files/diary-2026/images/wide%20panorama.png";
+            String smallImageUrl =
+                    "https://content.example.test/files/diary-2026/images/small%20scan.png";
+
+            assertThat(selectedImage.body()).contains(
+                    "Shared image one", "Shared image two", "Missing image metadata",
+                    "Unknown typed media", "No image selected", "Invalid image metadata",
+                    "Decorative image with empty alt",
+                    "data-reader-fragment=\"35\"", "data-has-marquee=\"false\"",
+                    "data-fragment-type=\"IMAGE\"", "data-media-state=\"AVAILABLE\"",
+                    "class=\"fragment-media__image\"", sharedImageUrl,
+                    "alt=\"Map &lt;east&gt; &amp; west\"", "width=\"1600\"", "height=\"900\"",
+                    "Shared &lt;caption&gt; &amp; detail", "Open image directly",
+                    "Image unavailable", "Unsupported fragment type", "No image selected",
+                    emptyAltImageUrl, "alt=\"\"", "width=\"800\"", "height=\"600\"",
+                    tallImageUrl, "alt=\"Tall image\"", "width=\"400\"", "height=\"1600\"",
+                    wideImageUrl, "alt=\"Wide image\"", "width=\"2400\"", "height=\"300\"",
+                    smallImageUrl, "alt=\"Small image\"", "width=\"64\"", "height=\"48\"",
+                    "Long caption &lt;strong&gt;not markup&lt;/strong&gt; detail detail detail",
+                    "data-reader-fragment=\"42\"");
+            assertThat(selectedImage.body()).containsPattern(
+                    "(?s)data-reader-fragment=\"35\".*?aria-current=\"true\"");
+            assertThat(selectedImage.body()).contains("data-viewer-action=\"fit-selection\" disabled");
+            assertThat(selectedImage.body()).containsPattern(
+                    "(?s)data-viewer-action=\"toggle-display\".*?disabled.*?>Use highlight style</button>");
+            assertThat(occurrences(selectedImage.body(), sharedImageUrl)).isEqualTo(4);
+            assertThat(occurrences(selectedImage.body(), "data-fragment-media=\"35\"")).isEqualTo(1);
+            assertThat(occurrences(selectedImage.body(), "data-fragment-media=\"36\"")).isEqualTo(1);
+            assertThat(selectedImage.body()).containsPattern(
+                    "(?s)data-reader-fragment=\"35\".*?Show the corresponding original source page\\.");
+            assertThat(selectedImage.body()).doesNotContain(
+                    "reader-viewer is-focus-mode has-selection",
+                    "Shared <caption> & detail", "Map <east> & west",
+                    "<strong>not markup</strong>",
+                    "src=\"\"", "src=\"null\"");
+
+            assertThat(source.statusCode()).isEqualTo(200);
+            assertThat(source.body()).contains(
+                    "Shared image one", "Shared image two", "Missing image metadata",
+                    "Unknown typed media", "No image selected", "Invalid image metadata",
+                    "Decorative image with empty alt", sharedImageUrl, emptyAltImageUrl,
+                    tallImageUrl, wideImageUrl, smallImageUrl,
+                    "alt=\"Map &lt;east&gt; &amp; west\"", "alt=\"\"",
+                    "alt=\"Tall image\"", "alt=\"Wide image\"", "alt=\"Small image\"",
+                    "Shared &lt;caption&gt; &amp; detail", "Open image directly",
+                    "Long caption &lt;strong&gt;not markup&lt;/strong&gt; detail detail detail",
+                    "Image unavailable", "Unsupported fragment type", "No image selected",
+                    "data-fragment-selector=\"35\"", "Select image fragment",
+                    "data-fragment-selector=\"38\"", "Select fragment");
+            assertThat(occurrences(source.body(), sharedImageUrl)).isEqualTo(4);
+            assertThat(source.body()).doesNotContain(
+                    "data-marquee-fragment=\"35\"",
+                    "src=\"\"", "src=\"null\"");
+
+            assertThat(fragmentRedirect.statusCode()).isEqualTo(302);
+            assertThat(fragmentRedirect.headers().firstValue("Location"))
+                    .contains("/reader/diaries/11/2026/09?fragment=35#fragment-35");
+            assertThat(head.statusCode()).isEqualTo(200);
+            assertThat(head.body()).isEmpty();
+        }
+    }
+
+    @Test
+    void step11CoversMixedChronologyDegradedMediaMissingOwnershipAndReadOnlyHttpBoundaries() throws Exception {
+        try (ProjectionService projection = TestData.readyMixedMediaProjection(); WebServer server = server(projection)) {
+            projection.accept(new ProjectionEvent.UpsertFragment(new FragmentItem(90, 0, 2026, 9, 13,
+                    java.math.BigDecimal.ONE, "<p>Must not render without Page ownership</p>",
+                    null, FragmentType.IMAGE, 60L, null))).join();
+            projection.accept(new ProjectionEvent.UpsertFragment(new FragmentItem(91, 0, 2026, 9, 13,
+                    new java.math.BigDecimal("2"), "<p>Must not render with missing Page</p>",
+                    999L, FragmentType.IMAGE, 60L, null))).join();
+            server.start();
+
+            HttpResponse<String> month = get(server, "/reader/diaries/11/2026/09?fragment=35");
+            HttpResponse<String> source = get(server, "/reader/diaries/11/pages/22");
+            HttpResponse<String> sourceHead = send(server, "/reader/diaries/11/pages/22", "HEAD", null, null);
+            HttpResponse<String> sourcePost = send(server, "/reader/diaries/11/pages/22", "POST", null, null);
+            HttpResponse<String> imageRedirect = get(server, "/reader/fragments/35");
+
+            assertThat(month.statusCode()).isEqualTo(200);
+            assertAppearsInOrder(month.body(),
+                    "data-reader-fragment=\"33\"",
+                    "data-reader-fragment=\"34\"",
+                    "data-reader-fragment=\"35\"",
+                    "data-reader-fragment=\"36\"",
+                    "data-reader-fragment=\"37\"",
+                    "data-reader-fragment=\"38\"",
+                    "data-reader-fragment=\"39\"",
+                    "data-reader-fragment=\"40\"");
+            assertThat(month.body()).contains(
+                    "data-fragment-type=\"IMAGE\"",
+                    "data-media-state=\"AVAILABLE\"",
+                    "data-media-state=\"MISSING_METADATA\"",
+                    "data-media-state=\"INVALID_METADATA\"",
+                    "data-media-state=\"NO_SELECTION\"",
+                    "data-fragment-type=\"AUDIO\"",
+                    "data-media-state=\"UNSUPPORTED_TYPE\"",
+                    "Image unavailable", "No image selected", "Unsupported fragment type")
+                    .doesNotContain("Must not render without Page ownership", "Must not render with missing Page",
+                            "http://diaries-responder:8080");
+            assertThat(month.body()).doesNotContain("data-marquee-fragment=\"35\"");
+
+            assertThat(source.statusCode()).isEqualTo(200);
+            assertThat(source.body()).contains(
+                    "data-transcript-fragment=\"35\"",
+                    "data-fragment-selector=\"35\"",
+                    "Select image fragment",
+                    "data-transcript-fragment=\"38\"",
+                    "Select fragment")
+                    .doesNotContain("data-marquee-fragment=\"35\"",
+                            "Must not render without Page ownership", "Must not render with missing Page",
+                            "http://diaries-responder:8080");
+
+            assertThat(sourceHead.statusCode()).isEqualTo(200);
+            assertThat(sourceHead.body()).isEmpty();
+            assertThat(sourcePost.statusCode()).isEqualTo(405);
+            assertThat(sourcePost.headers().firstValue("Allow")).contains("GET, HEAD");
+            assertThat(imageRedirect.statusCode()).isEqualTo(302);
+            assertThat(imageRedirect.headers().firstValue("Location"))
+                    .contains("/reader/diaries/11/2026/09?fragment=35#fragment-35");
+
+            assertThat(month.headers().firstValue("Content-Security-Policy"))
+                    .hasValueSatisfying(value -> assertThat(value)
+                            .contains("default-src 'none'", "script-src 'self'",
+                                    "img-src https://content.example.test data:")
+                            .doesNotContain("http://diaries-responder:8080", "unsafe-inline", "unsafe-eval"));
         }
     }
 
@@ -203,6 +420,25 @@ class WebServerTest {
             assertThat(unknownFragment.statusCode()).isEqualTo(404);
             assertThat(invalid.body()).doesNotContain("Exception", "invalid diary month");
         }
+    }
+
+    private static void assertAppearsInOrder(String text, String... needles) {
+        int previous = -1;
+        for (String needle : needles) {
+            int current = text.indexOf(needle, previous + 1);
+            assertThat(current).as("expected %s after index %s", needle, previous).isGreaterThan(previous);
+            previous = current;
+        }
+    }
+
+    private static int occurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     private WebServer server(ProjectionService projection) {

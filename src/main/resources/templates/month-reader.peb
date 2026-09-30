@@ -32,9 +32,9 @@
       <button type="button" data-viewer-action="zoom-out" aria-label="Zoom out">−</button>
       <button type="button" data-viewer-action="zoom-in" aria-label="Zoom in">+</button>
       <button type="button" data-viewer-action="fit-page">Fit page</button>
-      <button type="button" data-viewer-action="fit-selection">Fit selection</button>
+      <button type="button" data-viewer-action="fit-selection"{% if not viewer.hasMarquee %} disabled{% endif %}>Fit selection</button>
       <button type="button" data-viewer-action="toggle-display"
-              aria-label="Use highlight style for the selected marquee">Use highlight style</button>
+              aria-label="Use highlight style for the selected marquee"{% if not viewer.hasMarquee %} disabled{% endif %}>Use highlight style</button>
     </div>
     <div class="viewer-surface" data-viewer-surface tabindex="0"
          aria-label="Zoomable original diary page. Use pointer gestures or the controls above.">
@@ -51,7 +51,7 @@
                   width="{{ viewer.width }}" height="{{ viewer.height }}" fill="black"></rect>
           </mask>
         </defs>
-        <image data-viewer-image href="{{ viewer.imageUrl }}" width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}"></image>
+        <image data-viewer-image href="{{ viewer.pageImageUrl }}" width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}"></image>
         <rect data-viewer-dimming class="viewer-dimming" x="0" y="0"
               width="{{ viewer.pageWidth }}" height="{{ viewer.pageHeight }}"
               mask="url(#viewer-selection-mask)"></rect>
@@ -74,15 +74,26 @@
       <article class="reader-fragment{% if fragment.selected %} is-selected{% endif %}"
                id="{{ fragment.anchor }}" data-reader-fragment="{{ fragment.id }}"
                data-page-id="{{ fragment.pageId }}" data-page-name="{{ fragment.pageName }}"
-               data-image-url="{{ fragment.imageUrl }}" data-page-width="{{ fragment.pageWidth }}"
+               data-image-url="{{ fragment.pageImageUrl }}" data-page-width="{{ fragment.pageWidth }}"
                data-page-height="{{ fragment.pageHeight }}" data-has-marquee="{{ fragment.hasMarquee }}"
                data-marquee-x="{{ fragment.x }}" data-marquee-y="{{ fragment.y }}"
                data-marquee-width="{{ fragment.width }}" data-marquee-height="{{ fragment.height }}"
-               data-fragment-url="{{ fragment.url }}"{% if fragment.selected %} aria-current="true"{% endif %}>
+               data-fragment-url="{{ fragment.url }}" data-fragment-type="{{ fragment.fragmentType }}"
+               data-media-state="{{ fragment.mediaState }}"{% if fragment.selected %} aria-current="true"{% endif %}>
         <div class="fragment__content" data-fragment-selector="{{ fragment.id }}" role="button" tabindex="0"
              aria-pressed="{% if fragment.selected %}true{% else %}false{% endif %}">
-          <span class="visually-hidden">Show the corresponding region on the original source. </span>{{ fragment.html | raw }}
+          <span class="visually-hidden">{% if fragment.hasMarquee %}Show the corresponding region on the original source. {% else %}Show the corresponding original source page. {% endif %}</span>{{ fragment.html | raw }}
         </div>
+        {% if fragment.mediaUrl %}
+        <figure class="fragment-media" data-fragment-media="{{ fragment.id }}">
+          <img class="fragment-media__image" src="{{ fragment.mediaUrl }}" alt="{{ fragment.mediaAltText }}"
+               width="{{ fragment.mediaWidth }}" height="{{ fragment.mediaHeight }}" loading="lazy" decoding="async">
+          {% if fragment.mediaCaption %}<figcaption class="fragment-media__caption">{{ fragment.mediaCaption }}</figcaption>{% endif %}
+          <p class="fragment-media__fallback"><a href="{{ fragment.mediaUrl }}">Open image directly</a></p>
+        </figure>
+        {% else %}
+          {% if fragment.mediaUnavailableText %}<p class="fragment-media__status" data-media-state="{{ fragment.mediaState }}">{{ fragment.mediaUnavailableText }}</p>{% endif %}
+        {% endif %}
       </article>
       {% endfor %}
     </section>

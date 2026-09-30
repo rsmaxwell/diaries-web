@@ -60,6 +60,26 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void acceptsUnicodeAndPercentAsLiteralCharactersInNestedFilesRoute() throws Exception {
+        String json = Files.readString(example)
+                .replace("\"filesPath\": \"files\"",
+                        "\"filesPath\": \"archive/été 100%/catalogue\"");
+        Path custom = writeTempConfiguration("diaries-web-unicode-files", json);
+        try {
+            LoadedConfiguration loaded = new ConfigLoader().load(custom, credentials);
+
+            assertThat(loaded.config().content().filesPath())
+                    .isEqualTo("archive/été 100%/catalogue");
+            assertThat(loaded.config().content().responderBaseUrl())
+                    .isEqualTo("http://localhost:8081");
+            assertThat(loaded.config().content().publicResponderBaseUrl())
+                    .isEqualTo("/diaries-responder");
+        } finally {
+            Files.deleteIfExists(custom);
+        }
+    }
+
+    @Test
     void rejectsUnsafeFilesRoutes() throws Exception {
         for (String value : new String[] {
                 "../files",
