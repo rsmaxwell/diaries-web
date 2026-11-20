@@ -381,7 +381,7 @@ class ProjectionServiceTest {
             assertThat(marqueeResolved.mediaState()).isEqualTo(ResolvedFragment.MediaState.NOT_APPLICABLE);
 
             var availableResolved = service.snapshot().resolveFragment(62).orElseThrow();
-            assertThat(availableResolved.marquee()).isEmpty();
+            assertThat(availableResolved.marquee()).contains(invalidImageLink);
             assertThat(availableResolved.image()).contains(availableImage);
             assertThat(availableResolved.mediaState()).isEqualTo(ResolvedFragment.MediaState.AVAILABLE);
 
@@ -518,7 +518,7 @@ class ProjectionServiceTest {
             assertThat(service.snapshot().relationshipDiagnostics().marqueeFragmentsWithoutMarquee()).isEqualTo(1);
             assertThat(service.snapshot().relationshipDiagnostics().imageFragmentsWithMarquee()).isEqualTo(1);
             assertThat(service.snapshot().relationshipDiagnostics().imagesReferencedButMissing()).isEqualTo(1);
-            assertThat(service.snapshot().resolveFragment(69).orElseThrow().marquee()).isEmpty();
+            assertThat(service.snapshot().resolveFragment(69).orElseThrow().marquee()).contains(invalidImageMarquee);
 
             service.accept(new ProjectionEvent.UpsertMarquee(repairedMarquee)).join();
             service.accept(new ProjectionEvent.UpsertImage(image(60, 0, "Repaired image"))).join();
@@ -613,7 +613,7 @@ class ProjectionServiceTest {
                     .isEqualTo(ResolvedFragment.MediaState.INVALID_METADATA);
             assertThat(snapshot.resolveFragment(87).orElseThrow().mediaState())
                     .isEqualTo(ResolvedFragment.MediaState.AVAILABLE);
-            assertThat(snapshot.resolveFragment(87).orElseThrow().marquee()).isEmpty();
+            assertThat(snapshot.resolveFragment(87).orElseThrow().marquee()).contains(illegalForImage87);
             assertThat(snapshot.resolveFragment(88).orElseThrow().mediaState())
                     .isEqualTo(ResolvedFragment.MediaState.UNSUPPORTED_TYPE);
             assertThat(snapshot.resolveFragment(89).orElseThrow().marquee()).contains(marqueeForLegacy89);

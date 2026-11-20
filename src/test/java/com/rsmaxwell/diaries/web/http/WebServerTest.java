@@ -27,6 +27,25 @@ class WebServerTest {
             .connectTimeout(Duration.ofSeconds(3)).build();
 
     @Test
+    void linkedImageAndSourceRegionRenderAsIndependentSafeControls() throws Exception {
+        try (ProjectionService projection = TestData.readyMixedMediaProjection(); WebServer server = server(projection)) {
+            server.start();
+            HttpResponse<String> month = get(server, "/reader/diaries/11/2026/09?fragment=35");
+            HttpResponse<String> page = get(server, "/reader/diaries/11/pages/22");
+            assertThat(month.statusCode()).isEqualTo(200);
+            assertThat(page.statusCode()).isEqualTo(200);
+            for (String html : new String[]{ month.body(), page.body() }) {
+                assertThat(html).contains("href=\"https://maps.example.test/a?x=1&amp;y=2#selection\"");
+                assertThat(html).contains("Show on source page");
+                assertThat(html).doesNotContain("href=\"javascript:alert(1)\"");
+                assertThat(html).contains("fragment-media__fallback");
+            }
+            assertThat(month.body()).contains("data-has-marquee=\"true\"");
+            assertThat(page.body()).contains("data-marquee-fragment=\"35\"");
+        }
+    }
+
+    @Test
     void distinguishesProcessLivenessFromProjectionReadiness() throws Exception {
         try (ProjectionService projection = new ProjectionService(Duration.ofMillis(20), Duration.ofSeconds(2));
                 WebServer server = server(projection)) {
@@ -201,7 +220,8 @@ class WebServerTest {
                     .containsEntry("mediaUnavailableText", null);
             assertThat(first).containsEntry("fragmentType", "IMAGE")
                     .containsEntry("mediaState", "AVAILABLE")
-                    .containsEntry("hasMarquee", false)
+                    .containsEntry("hasMarquee", true)
+                    .containsEntry("imageLinkUrl", "https://maps.example.test/a?x=1&y=2#selection")
                     .containsEntry("mediaUrl",
                             "https://content.example.test/files/diary-2026/images/shared%20detail%20%2B%23%3F.png")
                     .containsEntry("mediaAltText", "Map <east> & west")
@@ -210,7 +230,8 @@ class WebServerTest {
                     .containsEntry("mediaHeight", 900)
                     .containsEntry("mediaUnavailableText", null);
             assertThat(second).containsEntry("mediaUrl", first.get("mediaUrl"))
-                    .containsEntry("mediaCaption", first.get("mediaCaption"));
+                    .containsEntry("mediaCaption", first.get("mediaCaption"))
+                    .containsEntry("imageLinkUrl", null);
             assertThat(missing).containsEntry("fragmentType", "IMAGE")
                     .containsEntry("mediaState", "MISSING_METADATA")
                     .containsEntry("hasMarquee", false)
@@ -259,7 +280,7 @@ class WebServerTest {
                     "Shared image one", "Shared image two", "Missing image metadata",
                     "Unknown typed media", "No image selected", "Invalid image metadata",
                     "Decorative image with empty alt",
-                    "data-reader-fragment=\"35\"", "data-has-marquee=\"false\"",
+                    "data-reader-fragment=\"35\"", "data-has-marquee=\"true\"",
                     "data-fragment-type=\"IMAGE\"", "data-media-state=\"AVAILABLE\"",
                     "class=\"fragment-media__image\"", sharedImageUrl,
                     "alt=\"Map &lt;east&gt; &amp; west\"", "width=\"1600\"", "height=\"900\"",
@@ -273,16 +294,18 @@ class WebServerTest {
                     "data-reader-fragment=\"42\"");
             assertThat(selectedImage.body()).containsPattern(
                     "(?s)data-reader-fragment=\"35\".*?aria-current=\"true\"");
-            assertThat(selectedImage.body()).contains("data-viewer-action=\"fit-selection\" disabled");
+            assertThat(selectedImage.body()).doesNotContain("data-viewer-action=\"fit-selection\" disabled");
             assertThat(selectedImage.body()).containsPattern(
-                    "(?s)data-viewer-action=\"toggle-display\".*?disabled.*?>Use highlight style</button>");
+                    "(?s)data-viewer-action=\"toggle-display\"[^>]*>Use highlight style</button>");
+            assertThat(selectedImage.body()).doesNotContain(
+                    "aria-label=\"Use highlight style for the selected marquee\" disabled");
             assertThat(occurrences(selectedImage.body(), sharedImageUrl)).isEqualTo(4);
             assertThat(occurrences(selectedImage.body(), "data-fragment-media=\"35\"")).isEqualTo(1);
             assertThat(occurrences(selectedImage.body(), "data-fragment-media=\"36\"")).isEqualTo(1);
             assertThat(selectedImage.body()).containsPattern(
-                    "(?s)data-reader-fragment=\"35\".*?Show the corresponding original source page\\.");
+                    "(?s)data-reader-fragment=\"35\".*?Show the corresponding region on the original source\\.");
+            assertThat(selectedImage.body()).contains("reader-viewer is-focus-mode has-selection");
             assertThat(selectedImage.body()).doesNotContain(
-                    "reader-viewer is-focus-mode has-selection",
                     "Shared <caption> & detail", "Map <east> & west",
                     "<strong>not markup</strong>",
                     "src=\"\"", "src=\"null\"");
@@ -298,12 +321,11 @@ class WebServerTest {
                     "Shared &lt;caption&gt; &amp; detail", "Open image directly",
                     "Long caption &lt;strong&gt;not markup&lt;/strong&gt; detail detail detail",
                     "Image unavailable", "Unsupported fragment type", "No image selected",
-                    "data-fragment-selector=\"35\"", "Select image fragment",
+                    "data-fragment-selector=\"35\"", "Show on source page",
                     "data-fragment-selector=\"38\"", "Select fragment");
             assertThat(occurrences(source.body(), sharedImageUrl)).isEqualTo(4);
-            assertThat(source.body()).doesNotContain(
-                    "data-marquee-fragment=\"35\"",
-                    "src=\"\"", "src=\"null\"");
+            assertThat(source.body()).contains("data-marquee-fragment=\"35\"");
+            assertThat(source.body()).doesNotContain("src=\"\"", "src=\"null\"");
 
             assertThat(fragmentRedirect.statusCode()).isEqualTo(302);
             assertThat(fragmentRedirect.headers().firstValue("Location"))
@@ -351,17 +373,18 @@ class WebServerTest {
                     "Image unavailable", "No image selected", "Unsupported fragment type")
                     .doesNotContain("Must not render without Page ownership", "Must not render with missing Page",
                             "http://diaries-responder:8080");
-            assertThat(month.body()).doesNotContain("data-marquee-fragment=\"35\"");
+            assertThat(month.body()).containsPattern(
+                    "(?s)data-reader-fragment=\"35\"[^>]*data-has-marquee=\"true\"");
 
             assertThat(source.statusCode()).isEqualTo(200);
             assertThat(source.body()).contains(
                     "data-transcript-fragment=\"35\"",
                     "data-fragment-selector=\"35\"",
-                    "Select image fragment",
+                    "Show on source page",
+                    "data-marquee-fragment=\"35\"",
                     "data-transcript-fragment=\"38\"",
                     "Select fragment")
-                    .doesNotContain("data-marquee-fragment=\"35\"",
-                            "Must not render without Page ownership", "Must not render with missing Page",
+                    .doesNotContain("Must not render without Page ownership", "Must not render with missing Page",
                             "http://diaries-responder:8080");
 
             assertThat(sourceHead.statusCode()).isEqualTo(200);

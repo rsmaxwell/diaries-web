@@ -143,6 +143,20 @@ class RetainedContractTest {
     }
 
     @Test
+    void imageLinkUrlAndMarqueeIdentitySurviveRetainedDecode() throws Exception {
+        byte[] payload = ("{\"id\":50,\"version\":0,\"year\":2026,\"month\":9,\"day\":2,"
+                + "\"sequence\":1,\"text\":\"image\",\"pageId\":22,\"type\":\"IMAGE\","
+                + "\"imageId\":60,\"marqueeId\":44,"
+                + "\"imageLinkUrl\":\"https://maps.example.test/?x=1&y=2#part\"}")
+                .getBytes(StandardCharsets.UTF_8);
+        FragmentItem result = ((ProjectionEvent.UpsertFragment)
+                decoder.decode("diaries/fragments/50", payload)).value();
+        assertThat(result.marqueeId()).isEqualTo(44L);
+        assertThat(result.imageId()).isEqualTo(60L);
+        assertThat(result.imageLinkUrl()).isEqualTo("https://maps.example.test/?x=1&y=2#part");
+    }
+
+    @Test
     void decodesCanonicalImageMetadataAndIgnoresUnknownAdditiveFields() throws Exception {
         ImageItem image = ((ProjectionEvent.UpsertImage)
                 decoder.decode("diaries/images/60", resource("/fixtures/image.json"))).value();

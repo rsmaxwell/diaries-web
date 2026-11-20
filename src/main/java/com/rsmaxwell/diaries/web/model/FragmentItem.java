@@ -21,7 +21,8 @@ public record FragmentItem(
         FragmentType type,
         @JsonIgnore String rawType,
         Long imageId,
-        Long marqueeId) {
+        Long marqueeId,
+        String imageLinkUrl) {
 
     public FragmentItem {
         Validation.positiveId(id, "fragment id");
@@ -51,6 +52,14 @@ public record FragmentItem(
         }
     }
 
+    /** Source-compatible constructor for tests and older programmatic consumers. */
+    public FragmentItem(long id, long version, int year, int month, int day,
+            BigDecimal sequence, String text, Long pageId, FragmentType type,
+            String rawType, Long imageId, Long marqueeId) {
+        this(id, version, year, month, day, sequence, text, pageId, type,
+                rawType, imageId, marqueeId, null);
+    }
+
     /** Source-compatible constructor for known/legacy fragment types. */
     public FragmentItem(
             long id,
@@ -64,7 +73,7 @@ public record FragmentItem(
             FragmentType type,
             Long imageId,
             Long marqueeId) {
-        this(id, version, year, month, day, sequence, text, pageId, type, null, imageId, marqueeId);
+        this(id, version, year, month, day, sequence, text, pageId, type, null, imageId, marqueeId, null);
     }
 
     /**
@@ -83,11 +92,12 @@ public record FragmentItem(
             @JsonProperty("pageId") Long pageId,
             @JsonProperty("type") JsonNode typeNode,
             @JsonProperty("imageId") Long imageId,
-            @JsonProperty("marqueeId") Long marqueeId) {
+            @JsonProperty("marqueeId") Long marqueeId,
+            @JsonProperty("imageLinkUrl") String imageLinkUrl) {
         ParsedFragmentType parsed = parseType(typeNode);
         return new FragmentItem(
                 id, version, year, month, day, sequence, text, pageId,
-                parsed.type(), parsed.rawType(), imageId, marqueeId);
+                parsed.type(), parsed.rawType(), imageId, marqueeId, imageLinkUrl);
     }
 
     private static ParsedFragmentType parseType(JsonNode typeNode) {

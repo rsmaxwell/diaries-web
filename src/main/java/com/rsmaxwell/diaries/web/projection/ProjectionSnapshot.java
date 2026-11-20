@@ -192,13 +192,20 @@ public final class ProjectionSnapshot {
                     inconsistentLinks += compatibilityPointerAnomaly(fragment, state.marquees) ? 1 : 0;
                 }
                 case IMAGE -> {
-                    // An IMAGE never exposes a selected Marquee, even if retained data links one.
-                    if (!linkedMarquees.isEmpty()) {
-                        imageFragmentsWithMarquee++;
-                        if (linkedMarquees.stream().anyMatch(value -> value.pageId() != fragment.pageId())) {
-                            inconsistentPages++;
-                        }
+                    // 0051: IMAGE may own a Page-consistent Marquee. Keep IMAGE and
+                    // Marquee hydration independent; never reject based on arrival order.
+                    MarqueeItem matchingMarquee = linkedMarquees.stream()
+                            .filter(value -> value.pageId() == fragment.pageId())
+                            .findFirst().orElse(null);
+                    if (matchingMarquee != null) {
+                        marquee = matchingMarquee;
+                        fragmentByMarquee.put(marquee.id(), fragment);
+                        imageFragmentsWithMarquee++; // compatibility metric now counts valid linked IMAGEs
                     }
+                    if (linkedMarquees.stream().anyMatch(value -> value.pageId() != fragment.pageId())) {
+                        inconsistentPages++;
+                    }
+                    if (linkedMarquees.size() > 1) inconsistentLinks++;
                     inconsistentLinks += compatibilityPointerAnomaly(fragment, state.marquees) ? 1 : 0;
 
                     if (fragment.imageId() == null) {

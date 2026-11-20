@@ -118,9 +118,13 @@ public final class TestData {
         ProjectionService service = readyProjection();
         service.accept(new ProjectionEvent.UpsertImage(catalogueImage())).join();
         service.accept(new ProjectionEvent.UpsertFragment(
-                imageFragment(35, 3, 60L, "<p>Shared image one</p>"))).join();
+                new FragmentItem(35, 0, 2026, 9, 3, new BigDecimal("35.0"),
+                        "<p>Shared image one</p>", 22L, FragmentType.IMAGE, null, 60L, 46L,
+                        "https://maps.example.test/a?x=1&y=2#selection"))).join();
         service.accept(new ProjectionEvent.UpsertFragment(
-                imageFragment(36, 4, 60L, "<p>Shared image two</p>"))).join();
+                new FragmentItem(36, 0, 2026, 9, 4, new BigDecimal("36.0"),
+                        "<p>Shared image two</p>", 22L, FragmentType.IMAGE, null, 60L, null,
+                        "javascript:alert(1)"))).join();
         service.accept(new ProjectionEvent.UpsertFragment(
                 imageFragment(37, 5, 61L, "<p>Missing image metadata</p>"))).join();
         service.accept(new ProjectionEvent.UpsertFragment(
@@ -129,8 +133,7 @@ public final class TestData {
                 imageFragment(39, 7, null, "<p>No image selected</p>"))).join();
         service.accept(new ProjectionEvent.UpsertFragment(
                 imageFragment(40, 8, 62L, "<p>Invalid image metadata</p>"))).join();
-        // Deliberately inconsistent retained data: IMAGE selection must never expose
-        // this Marquee to the HTTP view model.
+        // 0051: same-Page IMAGE + Marquee is a valid relationship.
         service.accept(new ProjectionEvent.UpsertMarquee(
                 new MarqueeItem(46, 0, 22, 35, new RectangleItem(40, 50, 60, 70)))).join();
         service.recordInvalidImage(62).join();

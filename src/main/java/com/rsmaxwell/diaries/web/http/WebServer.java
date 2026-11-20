@@ -33,6 +33,7 @@ import com.rsmaxwell.diaries.web.projection.ProjectionStatus;
 import com.rsmaxwell.diaries.web.projection.ResolvedFragment;
 import com.rsmaxwell.diaries.web.rendering.FragmentHtmlSanitizer;
 import com.rsmaxwell.diaries.web.rendering.ImageUrlBuilder;
+import com.rsmaxwell.diaries.web.rendering.ImageLinkUrlPolicy;
 import com.rsmaxwell.diaries.web.rendering.PebbleRenderer;
 
 import io.javalin.Javalin;
@@ -357,7 +358,11 @@ public final class WebServer implements AutoCloseable {
         view.put("fragmentType", fragmentTypeName(fragment));
         view.put("mediaState", resolved.mediaState().name());
         view.put("hasMarquee",
-                effectiveType == FragmentType.MARQUEE && resolved.marquee().isPresent());
+                (effectiveType == FragmentType.MARQUEE || effectiveType == FragmentType.IMAGE)
+                        && resolved.marquee().isPresent());
+        view.put("sourcePageUrl", urls.page(resolved.diary().id(), resolved.page().id())
+                + "#fragment-" + fragment.id());
+        view.put("imageLinkUrl", null);
         view.put("mediaUrl", null);
         view.put("mediaAltText", null);
         view.put("mediaCaption", null);
@@ -370,6 +375,9 @@ public final class WebServer implements AutoCloseable {
             ImageItem image = resolved.image().orElseThrow(() -> new IllegalStateException(
                     "AVAILABLE IMAGE fragment has no resolved Image metadata: " + fragment.id()));
             view.put("mediaUrl", imageUrlBuilder.catalogueImageUrl(image.relativePath()));
+            // Links only exist on resolved, displayed catalogue Images. The
+            // existing file fallback is intentionally not wrapped in this URL.
+            view.put("imageLinkUrl", ImageLinkUrlPolicy.safeUrl(fragment.imageLinkUrl()));
             view.put("mediaAltText", image.altText());
             view.put("mediaCaption", image.caption());
             view.put("mediaWidth", image.width());
