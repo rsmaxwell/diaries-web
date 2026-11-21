@@ -206,6 +206,15 @@ The implementation pins Javalin 7.2.3, Pebble 4.1.2, OWASP Java HTML Sanitizer
 parent version catalog. Existing parent versions supply Java 25, Jackson,
 Paho MQTT v5, Log4j and JUnit.
 
+
+## 0051 IMAGE links and optional source Marquees (21 Nov 2026)
+
+The public reader's retained projection supports IMAGE Fragments with an optional reusable catalogue Image, an optional per-Fragment validated HTTP(S) `imageLinkUrl` and **zero or one same-Page Marquee**. The link is on the Fragment, not the shared Image; two Fragments can share Image bytes while linking to different destinations. The month and source-page views render plain media when no safe link is available, and a safe clickable image when the URL is present. External navigation and source-page highlighting are separate actions; an IMAGE without a Marquee is still valid and does not require an invented rectangle.
+
+The public reader remains a **read-only** MQTT retained-state consumer: it does not mutate Fragments, Marquees, Image rows or Files. Missing catalogue metadata or media should degrade to unavailable/non-clickable content rather than produce a misleading link. Existing MARQUEE transcription and legacy embedded HTML rendering remain supported pending separate 0028 migration. Retained Fragment and Marquee updates/tombstones must reconcile on reconnect and restart.
+
+The 0051-compatible production public reader image is `rsmaxwell/diaries-web:0.0.9-build-9`, coordinated with responder build-85 and Angular client build-79. After production link/IMAGE-Marquee writes, old pre-0051 readers are **not approved rollback targets**. See the parent architecture/0051 change-control acceptance review for the precise rollback boundary.
+
 ## Troubleshooting
 
 - `installDist` says the installation directory is neither empty nor an
