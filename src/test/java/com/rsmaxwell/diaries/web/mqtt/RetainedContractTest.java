@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentPlacement;
 import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
@@ -62,6 +63,18 @@ class RetainedContractTest {
             case ProjectionEvent.Tombstone ignored -> null;
         };
         assertThat(value).isInstanceOf(expectedType);
+    }
+
+    @Test
+    void decodesYearOwnedPreambleFromCanonicalFragmentTopic() throws Exception {
+        FragmentItem result = json.readValue("""
+                {"id":91,"version":0,"year":1832,"month":1,"day":1,
+                 "sequence":1,"text":"Annual introduction","pageId":null,
+                 "type":"TEXT","diaryId":4,"placement":"PREAMBLE"}
+                """, FragmentItem.class);
+        assertThat(result.diaryId()).isEqualTo(4L);
+        assertThat(result.placement()).isEqualTo(FragmentPlacement.PREAMBLE);
+        assertThat(result.pageId()).isNull();
     }
 
     @Test
@@ -126,6 +139,18 @@ class RetainedContractTest {
         assertThat(unknown.type()).isEqualTo(FragmentType.UNKNOWN);
         assertThat(unknown.effectiveType()).isEqualTo(FragmentType.UNKNOWN);
         assertThat(unknown.rawType()).isEqualTo("VIDEO");
+    }
+
+    @Test
+    void decodesExplicitTextFragmentWithoutMarquee() throws Exception {
+        byte[] payload = ("{\"id\":52,\"version\":0,\"year\":2026,\"month\":9,\"day\":2,"
+                + "\"sequence\":1,\"text\":\"editorial note\",\"pageId\":22,"
+                + "\"type\":\"TEXT\",\"marqueeId\":null}").getBytes(StandardCharsets.UTF_8);
+        FragmentItem textFragment = ((ProjectionEvent.UpsertFragment)
+                decoder.decode("diaries/fragments/52", payload)).value();
+        assertThat(textFragment.type()).isEqualTo(FragmentType.TEXT);
+        assertThat(textFragment.effectiveType()).isEqualTo(FragmentType.TEXT);
+        assertThat(textFragment.marqueeId()).isNull();
     }
 
     @Test

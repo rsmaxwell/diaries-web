@@ -22,6 +22,7 @@ import com.rsmaxwell.diaries.web.buildinfo.BuildInfo;
 import com.rsmaxwell.diaries.web.config.AppConfig;
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentPlacement;
 import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
@@ -237,6 +238,16 @@ public final class WebServer implements AutoCloseable {
         Map<String, Object> model = commonModel(monthLabel(month) + " – " + diary.name(), ctx);
         model.put("diary", Map.of("id", diary.id(), "name", diary.name(), "url", urls.diary(diary.id())));
         model.put("month", Map.of("label", monthLabel(month), "iso", month.toString()));
+        List<YearMonth> monthsThisYear = months.stream().filter(value -> value.getYear() == month.getYear()).toList();
+        boolean firstMonthOfYear = !monthsThisYear.isEmpty() && month.equals(monthsThisYear.get(0));
+        boolean lastMonthOfYear = !monthsThisYear.isEmpty()
+                && month.equals(monthsThisYear.get(monthsThisYear.size() - 1));
+        model.put("annualPreamble", firstMonthOfYear
+                ? annualFragmentViews(snapshot.annualFragments(diaryId, month.getYear(), FragmentPlacement.PREAMBLE), diary, snapshot)
+                : List.of());
+        model.put("annualPostamble", lastMonthOfYear
+                ? annualFragmentViews(snapshot.annualFragments(diaryId, month.getYear(), FragmentPlacement.POSTAMBLE), diary, snapshot)
+                : List.of());
         model.put("days", days);
         model.put("viewer", fragmentViews.get(selectedIndex));
         model.put("monthOptions", months.stream().map(value -> {
@@ -295,6 +306,25 @@ public final class WebServer implements AutoCloseable {
             return null;
         }
         return resolved;
+    }
+
+    private List<Map<String, Object>> annualFragmentViews(
+            List<FragmentItem> fragments, DiaryItem diary, ProjectionSnapshot snapshot) {
+        return fragments.stream().map(fragment -> {
+            Map<String, Object> view = new LinkedHashMap<String, Object>();
+            view.put("id", fragment.id());
+            view.put("html", sanitizer.sanitize(fragment.text(),
+                    imageUrlBuilder.legacyFragmentImageBaseUrl(diary)));
+            if (fragment.effectiveType() == FragmentType.IMAGE && fragment.imageId() != null) {
+                snapshot.imageById(fragment.imageId()).ifPresent(image -> {
+                    view.put("mediaUrl", imageUrlBuilder.catalogueImageUrl(image.relativePath()));
+                    view.put("mediaAltText", image.altText());
+                    view.put("mediaCaption", image.caption());
+                    view.put("imageLinkUrl", ImageLinkUrlPolicy.safeUrl(fragment.imageLinkUrl()));
+                });
+            }
+            return view;
+        }).toList();
     }
 
     private Map<String, Object> fragmentView(ResolvedFragment resolved, YearMonth month, boolean selected) {
@@ -358,7 +388,8 @@ public final class WebServer implements AutoCloseable {
         view.put("fragmentType", fragmentTypeName(fragment));
         view.put("mediaState", resolved.mediaState().name());
         view.put("hasMarquee",
-                (effectiveType == FragmentType.MARQUEE || effectiveType == FragmentType.IMAGE)
+                (effectiveType == FragmentType.TEXT || effectiveType == FragmentType.MARQUEE
+                        || effectiveType == FragmentType.IMAGE)
                         && resolved.marquee().isPresent());
         view.put("sourcePageUrl", urls.page(resolved.diary().id(), resolved.page().id())
                 + "#fragment-" + fragment.id());

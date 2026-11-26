@@ -67,6 +67,23 @@
     </nav>
   </aside>
   <div class="month-transcript" aria-label="Diary transcriptions for {{ month.label }}">
+    {% if annualPreamble is not empty %}
+    <section class="annual-editorial" aria-label="Year introduction">
+      {% for fragment in annualPreamble %}
+      <article class="reader-fragment annual-editorial__fragment" id="fragment-{{ fragment.id }}">
+        <div class="fragment__content">{{ fragment.html | raw }}</div>
+        {% if fragment.mediaUrl %}
+        <figure class="fragment-media">
+          {% if fragment.imageLinkUrl %}<a href="{{ fragment.imageLinkUrl }}">{% endif %}
+          <img src="{{ fragment.mediaUrl }}" alt="{{ fragment.mediaAltText }}" loading="lazy" decoding="async">
+          {% if fragment.imageLinkUrl %}</a>{% endif %}
+          {% if fragment.mediaCaption %}<figcaption>{{ fragment.mediaCaption }}</figcaption>{% endif %}
+        </figure>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </section>
+    {% endif %}
     {% for day in days %}
     <section class="transcript-day" id="{{ day.anchor }}">
       <h3><time datetime="{{ day.iso }}">{{ day.date }}</time></h3>
@@ -103,6 +120,23 @@
       {% endfor %}
     </section>
     {% endfor %}
+    {% if annualPostamble is not empty %}
+    <section class="annual-editorial" aria-label="Year conclusion">
+      {% for fragment in annualPostamble %}
+      <article class="reader-fragment annual-editorial__fragment" id="fragment-{{ fragment.id }}">
+        <div class="fragment__content">{{ fragment.html | raw }}</div>
+        {% if fragment.mediaUrl %}
+        <figure class="fragment-media">
+          {% if fragment.imageLinkUrl %}<a href="{{ fragment.imageLinkUrl }}">{% endif %}
+          <img src="{{ fragment.mediaUrl }}" alt="{{ fragment.mediaAltText }}" loading="lazy" decoding="async">
+          {% if fragment.imageLinkUrl %}</a>{% endif %}
+          {% if fragment.mediaCaption %}<figcaption>{{ fragment.mediaCaption }}</figcaption>{% endif %}
+        </figure>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </section>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

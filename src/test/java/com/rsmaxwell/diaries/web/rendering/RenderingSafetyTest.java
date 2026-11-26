@@ -133,7 +133,8 @@ class RenderingSafetyTest {
         String month = resourceText("/templates/month-reader.peb");
         String source = resourceText("/templates/source-page.peb");
 
-        assertThat(occurrences(month, "| raw")).isEqualTo(1);
+        assertThat(occurrences(month, "fragment.html | raw")).isEqualTo(3);
+        assertThat(occurrences(month, "| raw")).isEqualTo(3);
         assertThat(occurrences(source, "| raw")).isEqualTo(1);
         assertThat(month).contains("fragment.html | raw")
                 .doesNotContain("mediaAltText | raw", "mediaCaption | raw", "mediaUrl | raw");

@@ -22,13 +22,20 @@ public record FragmentItem(
         @JsonIgnore String rawType,
         Long imageId,
         Long marqueeId,
-        String imageLinkUrl) {
+        String imageLinkUrl,
+        Long diaryId,
+        FragmentPlacement placement) {
 
     public FragmentItem {
         Validation.positiveId(id, "fragment id");
         Validation.nonNegative(version, "fragment version");
         sequence = Validation.notNull(sequence, "fragment sequence");
         text = Validation.notNull(text, "fragment text");
+        placement = placement == null ? FragmentPlacement.DATED : placement;
+        if (diaryId != null) Validation.positiveId(diaryId, "fragment diaryId");
+        if (placement != FragmentPlacement.DATED && (pageId != null || diaryId == null || marqueeId != null)) {
+            throw new IllegalArgumentException("annual fragment requires diaryId and no Page/Marquee");
+        }
         if (pageId != null) {
             Validation.positiveId(pageId, "fragment pageId");
         }
@@ -50,6 +57,14 @@ public record FragmentItem(
         } catch (DateTimeException exception) {
             throw new IllegalArgumentException("invalid fragment date", exception);
         }
+    }
+
+    /** Compatibility constructor for old canonical payloads and programmatic callers. */
+    public FragmentItem(long id, long version, int year, int month, int day,
+            BigDecimal sequence, String text, Long pageId, FragmentType type,
+            String rawType, Long imageId, Long marqueeId, String imageLinkUrl) {
+        this(id, version, year, month, day, sequence, text, pageId, type,
+                rawType, imageId, marqueeId, imageLinkUrl, null, FragmentPlacement.DATED);
     }
 
     /** Source-compatible constructor for tests and older programmatic consumers. */
@@ -93,11 +108,13 @@ public record FragmentItem(
             @JsonProperty("type") JsonNode typeNode,
             @JsonProperty("imageId") Long imageId,
             @JsonProperty("marqueeId") Long marqueeId,
-            @JsonProperty("imageLinkUrl") String imageLinkUrl) {
+            @JsonProperty("imageLinkUrl") String imageLinkUrl,
+            @JsonProperty("diaryId") Long diaryId,
+            @JsonProperty("placement") FragmentPlacement placement) {
         ParsedFragmentType parsed = parseType(typeNode);
         return new FragmentItem(
                 id, version, year, month, day, sequence, text, pageId,
-                parsed.type(), parsed.rawType(), imageId, marqueeId, imageLinkUrl);
+                parsed.type(), parsed.rawType(), imageId, marqueeId, imageLinkUrl, diaryId, placement);
     }
 
     private static ParsedFragmentType parseType(JsonNode typeNode) {
@@ -110,6 +127,7 @@ public record FragmentItem(
         String raw = typeNode.textValue();
         return switch (raw) {
             case "MARQUEE" -> new ParsedFragmentType(FragmentType.MARQUEE, null);
+            case "TEXT" -> new ParsedFragmentType(FragmentType.TEXT, null);
             case "IMAGE" -> new ParsedFragmentType(FragmentType.IMAGE, null);
             default -> new ParsedFragmentType(FragmentType.UNKNOWN, raw);
         };

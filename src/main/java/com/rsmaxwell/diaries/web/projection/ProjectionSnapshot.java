@@ -14,6 +14,7 @@ import java.util.TreeSet;
 
 import com.rsmaxwell.diaries.web.model.DiaryItem;
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentPlacement;
 import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
@@ -45,6 +46,7 @@ public final class ProjectionSnapshot {
     private final Map<Long, FragmentItem> fragmentByMarqueeId;
     private final Map<DiaryDayKey, List<FragmentItem>> fragmentsByDiaryAndDate;
     private final Map<Long, List<LocalDate>> datesByDiaryId;
+    private final Map<DiaryYearPlacementKey, List<FragmentItem>> annualFragments;
     private final Map<DiaryMonthKey, List<ResolvedFragment>> fragmentsByDiaryAndMonth;
     private final Map<Long, List<YearMonth>> monthsByDiaryId;
     private final Map<Long, ResolvedFragment> resolvedFragmentsById;
@@ -64,6 +66,7 @@ public final class ProjectionSnapshot {
             Map<Long, FragmentItem> fragmentByMarqueeId,
             Map<DiaryDayKey, List<FragmentItem>> fragmentsByDiaryAndDate,
             Map<Long, List<LocalDate>> datesByDiaryId,
+            Map<DiaryYearPlacementKey, List<FragmentItem>> annualFragments,
             Map<DiaryMonthKey, List<ResolvedFragment>> fragmentsByDiaryAndMonth,
             Map<Long, List<YearMonth>> monthsByDiaryId,
             Map<Long, ResolvedFragment> resolvedFragmentsById,
@@ -81,6 +84,7 @@ public final class ProjectionSnapshot {
         this.fragmentByMarqueeId = Map.copyOf(fragmentByMarqueeId);
         this.fragmentsByDiaryAndDate = copyLists(fragmentsByDiaryAndDate);
         this.datesByDiaryId = copyLists(datesByDiaryId);
+        this.annualFragments = copyLists(annualFragments);
         this.fragmentsByDiaryAndMonth = copyLists(fragmentsByDiaryAndMonth);
         this.monthsByDiaryId = copyLists(monthsByDiaryId);
         this.resolvedFragmentsById = Map.copyOf(resolvedFragmentsById);
@@ -130,6 +134,7 @@ public final class ProjectionSnapshot {
         Map<Long, ResolvedFragment> resolvedFragments = new HashMap<>();
         Map<DiaryDayKey, List<FragmentItem>> fragmentsByDay = new HashMap<>();
         Map<Long, TreeSet<LocalDate>> mutableDatesByDiary = new HashMap<>();
+        Map<DiaryYearPlacementKey, List<FragmentItem>> annual = new HashMap<>();
         Map<DiaryMonthKey, List<ResolvedFragment>> fragmentsByMonth = new HashMap<>();
         Map<Long, TreeSet<YearMonth>> mutableMonthsByDiary = new HashMap<>();
         int fragmentsWithoutPageId = 0;
@@ -149,6 +154,16 @@ public final class ProjectionSnapshot {
         for (FragmentItem fragment : state.fragments.values()) {
             if (fragment.type() == null) {
                 legacyTypeFallbacks++;
+            }
+            if (fragment.placement() != FragmentPlacement.DATED) {
+                if (fragment.diaryId() != null && state.diaries.containsKey(fragment.diaryId())
+                        && fragment.pageId() == null && fragment.marqueeId() == null) {
+                    annual.computeIfAbsent(new DiaryYearPlacementKey(fragment.diaryId(),
+                            fragment.year(), fragment.placement()), ignored -> new ArrayList<>()).add(fragment);
+                } else {
+                    fragmentsWithoutPageId++;
+                }
+                continue;
             }
             if (fragment.pageId() == null) {
                 fragmentsWithoutPageId++;
@@ -171,7 +186,7 @@ public final class ProjectionSnapshot {
             ResolvedFragment.MediaState mediaState;
 
             switch (fragment.effectiveType()) {
-                case MARQUEE -> {
+                case MARQUEE, TEXT -> {
                     mediaState = ResolvedFragment.MediaState.NOT_APPLICABLE;
                     if (fragment.imageId() != null) {
                         marqueeFragmentsWithImage++;
@@ -181,7 +196,9 @@ public final class ProjectionSnapshot {
                             .findFirst()
                             .orElse(null);
                     if (matchingMarquee == null) {
-                        marqueeFragmentsWithoutMarquee++;
+                        if (fragment.effectiveType() == com.rsmaxwell.diaries.web.model.FragmentType.MARQUEE) {
+                            marqueeFragmentsWithoutMarquee++;
+                        }
                     } else {
                         marquee = matchingMarquee;
                         fragmentByMarquee.put(matchingMarquee.id(), fragment);
@@ -251,6 +268,7 @@ public final class ProjectionSnapshot {
             mutableMonthsByDiary.computeIfAbsent(diary.id(), ignored -> new TreeSet<>()).add(month);
         }
         fragmentsByDay.values().forEach(items -> items.sort(FRAGMENT_ORDER));
+        annual.values().forEach(items -> items.sort(FRAGMENT_ORDER));
         fragmentsByMonth.values().forEach(items -> items.sort(
                 Comparator.comparing((ResolvedFragment value) -> value.fragment().date())
                         .thenComparing(ResolvedFragment::fragment, FRAGMENT_ORDER)));
@@ -293,6 +311,7 @@ public final class ProjectionSnapshot {
                 fragmentByMarquee,
                 fragmentsByDay,
                 datesByDiary,
+                annual,
                 fragmentsByMonth,
                 monthsByDiary,
                 resolvedFragments,
@@ -382,6 +401,11 @@ public final class ProjectionSnapshot {
 
     public List<PageItem> pagesForDiary(long diaryId) {
         return pagesByDiaryId.getOrDefault(diaryId, List.of());
+    }
+
+    public List<FragmentItem> annualFragments(long diaryId, int year, FragmentPlacement placement) {
+        if (placement == FragmentPlacement.DATED) return List.of();
+        return annualFragments.getOrDefault(new DiaryYearPlacementKey(diaryId, year, placement), List.of());
     }
 
     public List<LocalDate> datesForDiary(long diaryId) {

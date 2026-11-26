@@ -20,6 +20,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 import com.rsmaxwell.diaries.web.model.FragmentItem;
+import com.rsmaxwell.diaries.web.model.FragmentPlacement;
 import com.rsmaxwell.diaries.web.model.FragmentType;
 import com.rsmaxwell.diaries.web.model.ImageItem;
 import com.rsmaxwell.diaries.web.model.MarqueeItem;
@@ -28,6 +29,33 @@ import com.rsmaxwell.diaries.web.mqtt.EntityType;
 
 class ProjectionServiceTest {
     private static final Duration WAIT = Duration.ofSeconds(3);
+
+    @Test
+    void indexesYearLevelPreambleAndPostambleWithoutAFalseMissingPageError() {
+        FragmentItem intro2 = new FragmentItem(102, 0, 2026, 1, 1,
+                new BigDecimal("2"), "Intro two", null, FragmentType.TEXT, null,
+                null, null, null, diary().id(), FragmentPlacement.PREAMBLE);
+        FragmentItem intro1 = new FragmentItem(101, 0, 2026, 1, 1,
+                new BigDecimal("1"), "Intro one", null, FragmentType.TEXT, null,
+                null, null, null, diary().id(), FragmentPlacement.PREAMBLE);
+        FragmentItem ending = new FragmentItem(103, 0, 2026, 12, 31,
+                BigDecimal.ONE, "Ending", null, FragmentType.TEXT, null,
+                null, null, null, diary().id(), FragmentPlacement.POSTAMBLE);
+        try (ProjectionService service = service()) {
+            startReplay(service, List.of(
+                    new ProjectionEvent.UpsertDiary(diary()),
+                    new ProjectionEvent.UpsertFragment(intro2),
+                    new ProjectionEvent.UpsertFragment(ending),
+                    new ProjectionEvent.UpsertFragment(intro1)));
+            ProjectionSnapshot snapshot = service.snapshot();
+            assertThat(snapshot.annualFragments(diary().id(), 2026, FragmentPlacement.PREAMBLE))
+                    .extracting(FragmentItem::id).containsExactly(101L, 102L);
+            assertThat(snapshot.annualFragments(diary().id(), 2026, FragmentPlacement.POSTAMBLE))
+                    .extracting(FragmentItem::id).containsExactly(103L);
+            assertThat(snapshot.annualFragments(diary().id(), 2027, FragmentPlacement.PREAMBLE)).isEmpty();
+            assertThat(snapshot.relationshipDiagnostics().fragmentsWithoutPageId()).isZero();
+        }
+    }
 
     @Test
     void resolvesCompleteRelationshipInEveryArrivalOrder() {
@@ -223,6 +251,25 @@ class ProjectionServiceTest {
                     .containsExactly(35L);
             assertThat(service.snapshot().relationshipDiagnostics().marqueeFragmentsWithoutMarquee())
                     .isEqualTo(1);
+        }
+    }
+
+    @Test
+    void explicitTextWithoutMarqueeIsValidAndRemainsInChronology() {
+        FragmentItem text = new FragmentItem(
+                135, 0, 2026, 9, 3, new BigDecimal("1.0"), "editorial note",
+                22L, FragmentType.TEXT, null, null);
+        try (ProjectionService service = service()) {
+            startReplay(service, List.of(
+                    new ProjectionEvent.UpsertDiary(diary()),
+                    new ProjectionEvent.UpsertPage(page()),
+                    new ProjectionEvent.UpsertFragment(text)));
+            assertThat(service.snapshot().resolveFragment(135)).isPresent();
+            assertThat(service.snapshot().resolveFragment(135).orElseThrow().marquee()).isEmpty();
+            assertThat(service.snapshot().fragmentsForDay(11, text.date()))
+                    .extracting(FragmentItem::id).containsExactly(135L);
+            assertThat(service.snapshot().relationshipDiagnostics().marqueeFragmentsWithoutMarquee())
+                    .isZero();
         }
     }
 
