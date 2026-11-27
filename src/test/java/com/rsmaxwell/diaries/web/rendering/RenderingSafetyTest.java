@@ -25,6 +25,88 @@ class RenderingSafetyTest {
     }
 
     @Test
+    void preservesQuillSafeColoursAndFontsButRejectsExecutableStyles() {
+        String result = new FragmentHtmlSanitizer().sanitize(
+                "<p><span class=\"ql-font-monospace ql-size-large\" "
+                        + "style=\"color: rgb(230, 0, 0); background-color: #ffff00; "
+                        + "background-image: url(javascript:alert(1))\">Colours</span></p>");
+        assertThat(result).contains("ql-font-monospace", "ql-size-large")
+                .contains("ql-color-e60000", "ql-background-ffff00")
+                .doesNotContain("style=");
+        assertThat(result).doesNotContain("javascript", "background-image", "alert(1)");
+    }
+
+    @Test
+    void convertsSavedAnnualBackgroundIntoCspCompatibleClass() {
+        String result = new FragmentHtmlSanitizer().sanitize(
+                "<p><span style=\"background-color:rgb(230, 0, 0)\">xxxx</span></p>");
+        assertThat(result).contains("class=\"ql-background-e60000\"", "xxxx")
+                .doesNotContain("style=");
+    }
+
+    @Test
+    void rejectsNonPaletteColoursAndKeepsCspSafeOutput() {
+        String result = new FragmentHtmlSanitizer().sanitize(
+                "<p><span style=\"color:#123456;background-color:rgb(1,2,3)\">text</span></p>");
+        assertThat(result).doesNotContain("style=", "ql-color-123456", "ql-background-010203");
+    }
+
+    @Test
+    void includesDefaultPaletteRulesInReaderStylesheet() throws Exception {
+        String css = resourceText("/static/css/diaries.css");
+        assertThat(css).contains(".ql-background-e60000 { background-color: #e60000; }")
+                .contains(".ql-color-0066cc { color: #0066cc; }");
+    }
+
+    @Test
+    void preservesAllSharedToolbarFormatsThroughReaderSanitization() {
+        String html = "<h2 class=\"ql-align-center\">Heading</h2>"
+                + "<p><strong>bold</strong><em>italic</em><u>underline</u>"
+                + "<span class=\"ql-font-serif ql-size-large\">Serif large</span>"
+                + "<span class=\"ql-font-monospace ql-size-small\">Mono small</span>"
+                + "<span class=\"ql-size-huge\">Huge</span>"
+                + "<span style=\"color:rgb(0,102,204);background-color:rgb(230,0,0)\">Combined</span>"
+                + "<a href=\"https://example.org/reference\">Link</a></p>"
+                + "<ol><li data-list=\"bullet\">Bullet</li><li data-list=\"ordered\">Numbered</li></ol>"
+                + "<p class=\"ql-indent-2\">Indented</p>"
+                + "<p>Unformatted after clear</p>";
+        String result = new FragmentHtmlSanitizer().sanitize(html);
+        assertThat(result).contains("<h2 class=\"ql-align-center\">Heading</h2>",
+                "<strong>bold</strong>", "<em>italic</em>", "<u>underline</u>",
+                "ql-font-serif", "ql-size-large", "ql-font-monospace", "ql-size-small", "ql-size-huge",
+                "ql-color-0066cc", "ql-background-e60000", "https://example.org/reference",
+                "ql-list-bullet", "Bullet", "Numbered", "ql-indent-2", "Unformatted after clear")
+                .doesNotContain("style=", "data-list=");
+    }
+
+    @Test
+    void preservesBulletListSemanticsWithoutTrustingArbitraryAttributes() {
+        String html = "<ol><li class=\"ql-indent-1\" data-list=\"bullet\" onclick=\"alert(1)\">A</li>"
+                + "<li data-list=\"ordered\">B</li><li data-list=\"evil\">C</li></ol>";
+        String result = new FragmentHtmlSanitizer().sanitize(html);
+        assertThat(result).contains("ql-list-bullet", "ql-indent-1", "<ol>", "A", "B", "C")
+                .doesNotContain("onclick", "alert", "data-list", "ql-list-evil");
+    }
+
+    @Test
+    void sharedToolbarFormatsHaveCspCompatibleReaderCss() throws Exception {
+        String css = resourceText("/static/css/diaries.css");
+        assertThat(css).contains(".ql-align-center", ".ql-align-right", ".ql-align-justify",
+                ".ql-font-serif", ".ql-font-monospace", ".ql-size-small", ".ql-size-large",
+                ".ql-size-huge", ".ql-list-bullet", ".ql-indent-1", ".ql-indent-5",
+                ".ql-color-0066cc", ".ql-background-e60000");
+    }
+
+    @Test
+    void rejectsUnsafeLinksElementsAndStylesInCombinedRichText() {
+        String html = "<p><a href=\"javascript:alert(1)\">Unsafe</a>"
+                + "<span style=\"background-image:url(javascript:alert(2));color:#123456\">Other</span>"
+                + "<img src=\"javascript:alert(3)\"><script>alert(4)</script></p>";
+        String result = new FragmentHtmlSanitizer().sanitize(html);
+        assertThat(result).doesNotContain("javascript", "onclick", "style=", "ql-color-123456", "<script", "alert(");
+    }
+
+    @Test
     void convertsNonBreakingSpacesToNormalWordBreakOpportunities() {
         String result = new FragmentHtmlSanitizer().sanitize(
                 "<p>A&nbsp;fine&#160;morning&#xA0;rather\u00a0frosty</p>");

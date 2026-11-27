@@ -94,6 +94,97 @@ button, select { font: inherit; }
 .fragment__content p:last-child { margin-bottom: 0; }
 .fragment__content img { max-width: 100%; }
 .fragment__content pre { overflow-wrap: anywhere; white-space: pre-wrap; }
+/* Quill class formatting is shared by annual and dated TEXT. */
+.fragment__content .ql-align-center { text-align: center; }
+.fragment__content .ql-align-right { text-align: right; }
+.fragment__content .ql-align-justify { text-align: justify; }
+.fragment__content .ql-size-small { font-size: .75em; }
+.fragment__content .ql-size-large { font-size: 1.5em; }
+.fragment__content .ql-size-huge { font-size: 2.5em; }
+.fragment__content .ql-font-serif { font-family: Georgia, "Times New Roman", serif; }
+.fragment__content .ql-font-monospace { font-family: ui-monospace, monospace; }
+
+/* Quill 2 uses <ol> for both numbered and bulleted lists. The sanitizer
+   converts data-list="bullet" to this fixed safe class. */
+.fragment__content li.ql-list-bullet { list-style-type: disc; }
+/* Quill indentation is represented by classes, not inline styles. */
+.fragment__content .ql-indent-1 { margin-left: 3em; }
+.fragment__content .ql-indent-2 { margin-left: 6em; }
+.fragment__content .ql-indent-3 { margin-left: 9em; }
+.fragment__content .ql-indent-4 { margin-left: 12em; }
+.fragment__content .ql-indent-5 { margin-left: 15em; }
+
+/* Whitelisted Quill palette: CSS classes preserve style-src self without inline styles. */
+.fragment__content .ql-color-000000 { color: #000000; }
+.fragment__content .ql-background-000000 { background-color: #000000; }
+.fragment__content .ql-color-e60000 { color: #e60000; }
+.fragment__content .ql-background-e60000 { background-color: #e60000; }
+.fragment__content .ql-color-ff9900 { color: #ff9900; }
+.fragment__content .ql-background-ff9900 { background-color: #ff9900; }
+.fragment__content .ql-color-ffff00 { color: #ffff00; }
+.fragment__content .ql-background-ffff00 { background-color: #ffff00; }
+.fragment__content .ql-color-008a00 { color: #008a00; }
+.fragment__content .ql-background-008a00 { background-color: #008a00; }
+.fragment__content .ql-color-0066cc { color: #0066cc; }
+.fragment__content .ql-background-0066cc { background-color: #0066cc; }
+.fragment__content .ql-color-9933ff { color: #9933ff; }
+.fragment__content .ql-background-9933ff { background-color: #9933ff; }
+.fragment__content .ql-color-ffffff { color: #ffffff; }
+.fragment__content .ql-background-ffffff { background-color: #ffffff; }
+.fragment__content .ql-color-facccc { color: #facccc; }
+.fragment__content .ql-background-facccc { background-color: #facccc; }
+.fragment__content .ql-color-ffebcc { color: #ffebcc; }
+.fragment__content .ql-background-ffebcc { background-color: #ffebcc; }
+.fragment__content .ql-color-ffffcc { color: #ffffcc; }
+.fragment__content .ql-background-ffffcc { background-color: #ffffcc; }
+.fragment__content .ql-color-cce8cc { color: #cce8cc; }
+.fragment__content .ql-background-cce8cc { background-color: #cce8cc; }
+.fragment__content .ql-color-cce0f5 { color: #cce0f5; }
+.fragment__content .ql-background-cce0f5 { background-color: #cce0f5; }
+.fragment__content .ql-color-ebd6ff { color: #ebd6ff; }
+.fragment__content .ql-background-ebd6ff { background-color: #ebd6ff; }
+.fragment__content .ql-color-bbbbbb { color: #bbbbbb; }
+.fragment__content .ql-background-bbbbbb { background-color: #bbbbbb; }
+.fragment__content .ql-color-f06666 { color: #f06666; }
+.fragment__content .ql-background-f06666 { background-color: #f06666; }
+.fragment__content .ql-color-ffc266 { color: #ffc266; }
+.fragment__content .ql-background-ffc266 { background-color: #ffc266; }
+.fragment__content .ql-color-ffff66 { color: #ffff66; }
+.fragment__content .ql-background-ffff66 { background-color: #ffff66; }
+.fragment__content .ql-color-66b966 { color: #66b966; }
+.fragment__content .ql-background-66b966 { background-color: #66b966; }
+.fragment__content .ql-color-66a3e0 { color: #66a3e0; }
+.fragment__content .ql-background-66a3e0 { background-color: #66a3e0; }
+.fragment__content .ql-color-c285ff { color: #c285ff; }
+.fragment__content .ql-background-c285ff { background-color: #c285ff; }
+.fragment__content .ql-color-888888 { color: #888888; }
+.fragment__content .ql-background-888888 { background-color: #888888; }
+.fragment__content .ql-color-a10000 { color: #a10000; }
+.fragment__content .ql-background-a10000 { background-color: #a10000; }
+.fragment__content .ql-color-b26b00 { color: #b26b00; }
+.fragment__content .ql-background-b26b00 { background-color: #b26b00; }
+.fragment__content .ql-color-b2b200 { color: #b2b200; }
+.fragment__content .ql-background-b2b200 { background-color: #b2b200; }
+.fragment__content .ql-color-006100 { color: #006100; }
+.fragment__content .ql-background-006100 { background-color: #006100; }
+.fragment__content .ql-color-0047b2 { color: #0047b2; }
+.fragment__content .ql-background-0047b2 { background-color: #0047b2; }
+.fragment__content .ql-color-6b24b2 { color: #6b24b2; }
+.fragment__content .ql-background-6b24b2 { background-color: #6b24b2; }
+.fragment__content .ql-color-444444 { color: #444444; }
+.fragment__content .ql-background-444444 { background-color: #444444; }
+.fragment__content .ql-color-5c0000 { color: #5c0000; }
+.fragment__content .ql-background-5c0000 { background-color: #5c0000; }
+.fragment__content .ql-color-663d00 { color: #663d00; }
+.fragment__content .ql-background-663d00 { background-color: #663d00; }
+.fragment__content .ql-color-666600 { color: #666600; }
+.fragment__content .ql-background-666600 { background-color: #666600; }
+.fragment__content .ql-color-003700 { color: #003700; }
+.fragment__content .ql-background-003700 { background-color: #003700; }
+.fragment__content .ql-color-002966 { color: #002966; }
+.fragment__content .ql-background-002966 { background-color: #002966; }
+.fragment__content .ql-color-3d1466 { color: #3d1466; }
+.fragment__content .ql-background-3d1466 { background-color: #3d1466; }
 
 .fragment-media { margin: 1rem 0 0; max-width: 100%; }
 .fragment-media__image { background: #f3efe7; border: 1px solid var(--line); display: block; height: auto; max-width: 100%; }
