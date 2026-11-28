@@ -13,8 +13,8 @@ public record FragmentItem(
         long id,
         long version,
         int year,
-        int month,
-        int day,
+        Integer month,
+        Integer day,
         BigDecimal sequence,
         String text,
         Long pageId,
@@ -33,8 +33,9 @@ public record FragmentItem(
         text = Validation.notNull(text, "fragment text");
         placement = placement == null ? FragmentPlacement.DATED : placement;
         if (diaryId != null) Validation.positiveId(diaryId, "fragment diaryId");
-        if (placement != FragmentPlacement.DATED && (pageId != null || diaryId == null || marqueeId != null)) {
-            throw new IllegalArgumentException("annual fragment requires diaryId and no Page/Marquee");
+        if (placement != FragmentPlacement.DATED && (pageId != null || diaryId != null || marqueeId != null
+                || month != null || day != null)) {
+            throw new IllegalArgumentException("annual fragment requires year-only ownership and no Page/Diary/Marquee/date");
         }
         if (pageId != null) {
             Validation.positiveId(pageId, "fragment pageId");
@@ -52,10 +53,13 @@ public record FragmentItem(
         } else if (rawType != null) {
             throw new IllegalArgumentException("raw fragment type is only valid for UNKNOWN");
         }
-        try {
-            LocalDate.of(year, month, day);
-        } catch (DateTimeException exception) {
-            throw new IllegalArgumentException("invalid fragment date", exception);
+        if (year < 1 || year > 9999) throw new IllegalArgumentException("invalid year");
+        if (placement == FragmentPlacement.DATED) {
+            try {
+                LocalDate.of(year, month, day);
+            } catch (DateTimeException | NullPointerException exception) {
+                throw new IllegalArgumentException("invalid fragment date", exception);
+            }
         }
     }
 
@@ -100,8 +104,8 @@ public record FragmentItem(
             @JsonProperty("id") long id,
             @JsonProperty("version") long version,
             @JsonProperty("year") int year,
-            @JsonProperty("month") int month,
-            @JsonProperty("day") int day,
+            @JsonProperty("month") Integer month,
+            @JsonProperty("day") Integer day,
             @JsonProperty("sequence") BigDecimal sequence,
             @JsonProperty("text") String text,
             @JsonProperty("pageId") Long pageId,

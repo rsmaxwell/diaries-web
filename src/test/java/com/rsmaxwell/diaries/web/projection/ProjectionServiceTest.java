@@ -31,16 +31,16 @@ class ProjectionServiceTest {
     private static final Duration WAIT = Duration.ofSeconds(3);
 
     @Test
-    void indexesYearLevelPreambleAndPostambleWithoutAFalseMissingPageError() {
-        FragmentItem intro2 = new FragmentItem(102, 0, 2026, 1, 1,
+    void indexesYearLevelPreambleAndEpilogueWithoutAFalseMissingPageError() {
+        FragmentItem intro2 = new FragmentItem(102, 0, 2026, null, null,
                 new BigDecimal("2"), "Intro two", null, FragmentType.TEXT, null,
-                null, null, null, diary().id(), FragmentPlacement.PREAMBLE);
-        FragmentItem intro1 = new FragmentItem(101, 0, 2026, 1, 1,
+                null, null, null, null, FragmentPlacement.PREAMBLE);
+        FragmentItem intro1 = new FragmentItem(101, 0, 2026, null, null,
                 new BigDecimal("1"), "Intro one", null, FragmentType.TEXT, null,
-                null, null, null, diary().id(), FragmentPlacement.PREAMBLE);
-        FragmentItem ending = new FragmentItem(103, 0, 2026, 12, 31,
+                null, null, null, null, FragmentPlacement.PREAMBLE);
+        FragmentItem ending = new FragmentItem(103, 0, 2026, null, null,
                 BigDecimal.ONE, "Ending", null, FragmentType.TEXT, null,
-                null, null, null, diary().id(), FragmentPlacement.POSTAMBLE);
+                null, null, null, null, FragmentPlacement.EPILOGUE);
         try (ProjectionService service = service()) {
             startReplay(service, List.of(
                     new ProjectionEvent.UpsertDiary(diary()),
@@ -50,8 +50,10 @@ class ProjectionServiceTest {
             ProjectionSnapshot snapshot = service.snapshot();
             assertThat(snapshot.annualFragments(diary().id(), 2026, FragmentPlacement.PREAMBLE))
                     .extracting(FragmentItem::id).containsExactly(101L, 102L);
-            assertThat(snapshot.annualFragments(diary().id(), 2026, FragmentPlacement.POSTAMBLE))
+            assertThat(snapshot.annualFragments(diary().id(), 2026, FragmentPlacement.EPILOGUE))
                     .extracting(FragmentItem::id).containsExactly(103L);
+            assertThat(snapshot.annualFragments(999L, 2026, FragmentPlacement.PREAMBLE))
+                    .extracting(FragmentItem::id).containsExactly(101L, 102L);
             assertThat(snapshot.annualFragments(diary().id(), 2027, FragmentPlacement.PREAMBLE)).isEmpty();
             assertThat(snapshot.relationshipDiagnostics().fragmentsWithoutPageId()).isZero();
         }

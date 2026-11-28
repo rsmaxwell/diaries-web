@@ -245,8 +245,8 @@ public final class WebServer implements AutoCloseable {
         model.put("annualPreamble", firstMonthOfYear
                 ? annualFragmentViews(snapshot.annualFragments(diaryId, month.getYear(), FragmentPlacement.PREAMBLE), diary, snapshot)
                 : List.of());
-        model.put("annualPostamble", lastMonthOfYear
-                ? annualFragmentViews(snapshot.annualFragments(diaryId, month.getYear(), FragmentPlacement.POSTAMBLE), diary, snapshot)
+        model.put("annualEpilogue", lastMonthOfYear
+                ? annualFragmentViews(snapshot.annualFragments(diaryId, month.getYear(), FragmentPlacement.EPILOGUE), diary, snapshot)
                 : List.of());
         model.put("days", days);
         model.put("viewer", fragmentViews.get(selectedIndex));

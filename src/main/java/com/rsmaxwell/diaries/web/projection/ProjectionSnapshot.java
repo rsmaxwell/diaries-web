@@ -156,9 +156,8 @@ public final class ProjectionSnapshot {
                 legacyTypeFallbacks++;
             }
             if (fragment.placement() != FragmentPlacement.DATED) {
-                if (fragment.diaryId() != null && state.diaries.containsKey(fragment.diaryId())
-                        && fragment.pageId() == null && fragment.marqueeId() == null) {
-                    annual.computeIfAbsent(new DiaryYearPlacementKey(fragment.diaryId(),
+                if (fragment.diaryId() == null && fragment.pageId() == null && fragment.marqueeId() == null) {
+                    annual.computeIfAbsent(new DiaryYearPlacementKey(
                             fragment.year(), fragment.placement()), ignored -> new ArrayList<>()).add(fragment);
                 } else {
                     fragmentsWithoutPageId++;
@@ -405,7 +404,7 @@ public final class ProjectionSnapshot {
 
     public List<FragmentItem> annualFragments(long diaryId, int year, FragmentPlacement placement) {
         if (placement == FragmentPlacement.DATED) return List.of();
-        return annualFragments.getOrDefault(new DiaryYearPlacementKey(diaryId, year, placement), List.of());
+        return annualFragments.getOrDefault(new DiaryYearPlacementKey(year, placement), List.of());
     }
 
     public List<LocalDate> datesForDiary(long diaryId) {

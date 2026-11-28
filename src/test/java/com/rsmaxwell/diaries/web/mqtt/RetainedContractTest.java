@@ -67,12 +67,18 @@ class RetainedContractTest {
 
     @Test
     void decodesYearOwnedPreambleFromCanonicalFragmentTopic() throws Exception {
-        FragmentItem result = json.readValue("""
-                {"id":91,"version":0,"year":1832,"month":1,"day":1,
+        byte[] payload = """
+                {"id":91,"version":0,"year":1832,"month":null,"day":null,
                  "sequence":1,"text":"Annual introduction","pageId":null,
-                 "type":"TEXT","diaryId":4,"placement":"PREAMBLE"}
-                """, FragmentItem.class);
-        assertThat(result.diaryId()).isEqualTo(4L);
+                 "type":"TEXT","diaryId":null,"placement":"PREAMBLE"}
+                """.getBytes(StandardCharsets.UTF_8);
+        ProjectionEvent event = decoder.decode("diaries/fragments/91", payload);
+        assertThat(event).isInstanceOf(ProjectionEvent.UpsertFragment.class);
+        FragmentItem result = ((ProjectionEvent.UpsertFragment) event).value();
+        assertThat(result.year()).isEqualTo(1832);
+        assertThat(result.diaryId()).isNull();
+        assertThat(result.month()).isNull();
+        assertThat(result.day()).isNull();
         assertThat(result.placement()).isEqualTo(FragmentPlacement.PREAMBLE);
         assertThat(result.pageId()).isNull();
     }

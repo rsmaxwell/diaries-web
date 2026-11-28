@@ -120,9 +120,9 @@
       {% endfor %}
     </section>
     {% endfor %}
-    {% if annualPostamble is not empty %}
+    {% if annualEpilogue is not empty %}
     <section class="annual-editorial" aria-label="Year conclusion">
-      {% for fragment in annualPostamble %}
+      {% for fragment in annualEpilogue %}
       <article class="reader-fragment annual-editorial__fragment" id="fragment-{{ fragment.id }}">
         <div class="fragment__content">{{ fragment.html | raw }}</div>
         {% if fragment.mediaUrl %}
